@@ -1,3 +1,23 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.Xml;
 using System.IO;
@@ -7,12 +27,13 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Configuration;
 using System.Windows.Forms;
+using Assistant.Agents;
 using Assistant.Core;
 using Assistant.Filters;
 using Assistant.Macros;
+using Assistant.Scripts;
 using Assistant.UI;
 using ContainerLabels = Assistant.Core.ContainerLabels;
-using OverheadMessages = Assistant.Core.OverheadMessages;
 
 namespace Assistant
 {
@@ -37,8 +58,12 @@ namespace Assistant
             AddProperty("ShowMobNames", false);
             AddProperty("ShowCorpseNames", false);
             AddProperty("DisplaySkillChanges", false);
-            AddProperty("TitleBarText",
-                @"UO - {char} {crimtime}- {mediumstatbar} {bp} {bm} {gl} {gs} {mr} {ns} {ss} {sa} {aids}");
+
+            if (Client.IsOSI)
+                AddProperty("TitleBarText", @"UO - {char} {crimtime}- {mediumstatbar} {bp} {bm} {gl} {gs} {mr} {ns} {ss} {sa} {aids}");
+            else
+                AddProperty("TitleBarText", @"UO - {char}");
+
             AddProperty("TitleBarDisplay", true);
             AddProperty("AutoSearch", true);
             AddProperty("NoSearchPouches", true);
@@ -54,15 +79,15 @@ namespace Assistant
             AddProperty("WindowY", (int) 400);
             AddProperty("CountStealthSteps", true);
 
-            AddProperty("SysColor", (int) 0x03B1);
+            AddProperty("SysColor", (int) 0x0044);
             AddProperty("WarningColor", (int) 0x0025);
             AddProperty("ExemptColor", (int) 0x0480);
             AddProperty("SpeechHue", (int) 0x03B1);
             AddProperty("BeneficialSpellHue", (int) 0x0005);
-            AddProperty("HarmfulSpellHue", (int) 0x0025);
+            AddProperty("HarmfulSpellHue", (int) 0x0058);
             AddProperty("NeutralSpellHue", (int) 0x03B1);
             AddProperty("ForceSpeechHue", false);
-            AddProperty("ForceSpellHue", false);
+            AddProperty("ForceSpellHue", true);
             AddProperty("SpellFormat", @"{power} [{spell}]");
 
             AddProperty("ShowNotoHue", true);
@@ -88,7 +113,7 @@ namespace Assistant
             AddProperty("SkillListCol", (int) -1);
             AddProperty("SkillListAsc", false);
 
-            AddProperty("AutoStack", true);
+            AddProperty("AutoStack", false);
             AddProperty("ActionStatusMsg", true);
             AddProperty("RememberPwds", false);
 
@@ -96,7 +121,6 @@ namespace Assistant
             AddProperty("RangeCheckLT", true);
             AddProperty("LTRange", (int) 12);
 
-            AddProperty("ClientPrio", "Normal");
             AddProperty("FilterSnoopMsg", true);
             AddProperty("OldStatBar", false);
 
@@ -141,12 +165,6 @@ namespace Assistant
             AddProperty("DiffTargetByType", false);
             AddProperty("StepThroughMacro", false);
 
-            // Map options
-            /*AddProperty("ShowPlayerPosition", true);
-            AddProperty("TrackPlayerPosition", true);
-            AddProperty("ShowPartyMemberPositions", true);
-            AddProperty("TiltMap", true);*/
-
             AddProperty("ShowTargetSelfLastClearOverhead", true);
             AddProperty("ShowOverheadMessages", false);
             AddProperty("CaptureMibs", false);
@@ -165,10 +183,6 @@ namespace Assistant
             AddProperty("BuffDebuffFormat", "[{action}{name} ({duration}s)]");
 
             AddProperty("BlockOpenCorpsesTwice", false);
-
-            AddProperty("ScreenshotUploadNotifications", false);
-            AddProperty("ScreenshotUploadClipboard", true);
-            AddProperty("ScreenshotUploadOpenBrowser", true);
 
             AddProperty("ShowAttackTargetOverhead", true);
 
@@ -193,7 +207,7 @@ namespace Assistant
             AddProperty("ShowStaticWallLabels", false);
 
             AddProperty("ShowTextTargetIndicator", false);
-            AddProperty("ShowAttackTargetNewOnly", false);
+            AddProperty("ShowAttackTargetNewOnly", true);
 
             AddProperty("FilterDragonGraphics", false);
             AddProperty("FilterDrakeGraphics", false);
@@ -209,8 +223,6 @@ namespace Assistant
             AddProperty("RazorTitleBarText", "{name} on {account} ({profile} - {shard}) - Razor v{version}");
 
             AddProperty("EnableUOAAPI", true);
-            AddProperty("UOAMPath", string.Empty);
-            AddProperty("UltimaMapperPath", string.Empty);
 
             AddProperty("TargetIndicatorFormat", "* Target *");
 
@@ -237,9 +249,6 @@ namespace Assistant
             AddProperty("OnlyShowBandageTimerEvery", false);
             AddProperty("OnlyShowBandageTimerSeconds", 1);
             AddProperty("ShowBandageTimerHue", 88);
-
-            AddProperty("FriendOverheadFormat", "[Friend]");
-            AddProperty("FriendOverheadFormatHue", 0x03F);
 
             AddProperty("TargetIndicatorHue", 10);
 
@@ -269,6 +278,46 @@ namespace Assistant
             AddProperty("CaptureOthersDeath", false);
             AddProperty("CaptureOwnDeath", false);
 
+            AddProperty("TargetFilterEnabled", false);
+
+            AddProperty("FilterDaemonGraphics", false);
+            AddProperty("DaemonGraphic", 0);
+
+            AddProperty("SoundFilterEnabled", false);
+            AddProperty("ShowFilteredSound", false);
+            AddProperty("ShowPlayingSoundInfo", false);
+            AddProperty("ShowMusicInfo", false);
+
+            AddProperty("AutoSaveScript", false);
+            AddProperty("AutoSaveScriptPlay", false);
+
+            AddProperty("HighlightFriend", false);
+
+            AddProperty("ScriptTargetTypeRange", false);
+            AddProperty("ScriptDClickTypeRange", false);
+            AddProperty("ScriptFindTypeRange", false);
+
+            AddProperty("ScriptDisablePlayFinish", false);
+
+            AddProperty("ShowWaypointOverhead", true);
+            AddProperty("ShowWaypointDistance", true);
+            AddProperty("ShowWaypointSeconds", 10);
+
+            AddProperty("ClearWaypoint", false);
+            AddProperty("HideWaypointDistance", 4);
+
+            AddProperty("CreateWaypointOnDeath", false);
+
+            AddProperty("ShowPartyFriendOverhead", false);
+
+            AddProperty("OverrideSpellFormat", true);
+
+            AddProperty("PotionReequip", true);
+
+            AddProperty("EnableTextFilter", false);
+
+            AddProperty("DisableScriptTooltips", false);
+
             Counter.Default();
             Filter.DisableAll();
             DressList.ClearAll();
@@ -276,11 +325,13 @@ namespace Assistant
             Agent.ClearAll();
             PasswordMemory.ClearAll();
             FriendsManager.ClearAll();
+            WaypointManager.ClearAll();
+            TextFilterManager.ClearAll();
             DressList.ClearAll();
-            OverheadMessages.ClearAll();
+            OverheadManager.ClearAll();
             ContainerLabels.ClearAll();
             MacroVariables.ClearAll();
-            FriendsManager.ClearAll();
+            ScriptVariables.ClearAll();
         }
 
         public string Name
@@ -317,7 +368,7 @@ namespace Assistant
                 return false;
 
             string path = Config.GetUserDirectory("Profiles");
-            string file = Path.Combine(path, String.Format("{0}.xml", m_Name));
+            string file = Path.Combine(path, $"{m_Name}.xml");
             if (!File.Exists(file))
                 return false;
 
@@ -381,10 +432,14 @@ namespace Assistant
             Counter.LoadProfile(root["counters"]);
             Agent.LoadProfile(root["agents"]);
             DressList.Load(root["dresslists"]);
+            TargetFilterManager.Load(root["targetfilters"]);
+            SoundMusicManager.Load(root["soundfilters"]);
+            WaypointManager.Load(root["waypoints"]);
+            TextFilterManager.Load(root["textfilters"]);
             FriendsManager.Load(root["friends"]);
             HotKey.Load(root["hotkeys"]);
             PasswordMemory.Load(root["passwords"]);
-            OverheadMessages.Load(root["overheadmessages"]);
+            OverheadManager.Load(root["overheadmessages"]);
             ContainerLabels.Load(root["containerlabels"]);
             MacroVariables.Load(root["macrovariables"]);
             //imports previous absolutetargets and doubleclickvariables if present in profile
@@ -393,6 +448,8 @@ namespace Assistant
             {
                 MacroVariables.Import(root);
             }
+
+            ScriptVariables.Load(root["scriptvariables"]);
 
             GoldPerHourTimer.Stop();
             DamageTracker.Stop();
@@ -482,13 +539,13 @@ namespace Assistant
         public void Save()
         {
             string profileDir = Config.GetUserDirectory("Profiles");
-            string file = Path.Combine(profileDir, String.Format("{0}.xml", m_Name));
+            string file = Path.Combine(profileDir, $"{m_Name}.xml");
 
             if (m_Name != "default" && !m_Warned)
             {
                 try
                 {
-                    m_Mutex = new System.Threading.Mutex(true, String.Format("Razor_Profile_{0}", m_Name));
+                    m_Mutex = new System.Threading.Mutex(true, $"Razor_Profile_{m_Name}");
 
                     if (!m_Mutex.WaitOne(10, false))
                         throw new Exception("Can't grab profile mutex, must be in use!");
@@ -504,7 +561,7 @@ namespace Assistant
             XmlTextWriter xml;
             try
             {
-                xml = new XmlTextWriter(file, Encoding.Default);
+                xml = new XmlTextWriter(file, Encoding.UTF8);
             }
             catch
             {
@@ -560,7 +617,7 @@ namespace Assistant
             xml.WriteEndElement();
 
             xml.WriteStartElement("overheadmessages");
-            OverheadMessages.Save(xml);
+            OverheadManager.Save(xml);
             xml.WriteEndElement();
 
             xml.WriteStartElement("containerlabels");
@@ -571,8 +628,28 @@ namespace Assistant
             MacroVariables.Save(xml);
             xml.WriteEndElement();
 
+            xml.WriteStartElement("scriptvariables");
+            ScriptVariables.Save(xml);
+            xml.WriteEndElement();
+
             xml.WriteStartElement("friends");
             FriendsManager.Save(xml);
+            xml.WriteEndElement();
+            
+            xml.WriteStartElement("textfilters");
+            TextFilterManager.Save(xml);
+            xml.WriteEndElement();
+
+            xml.WriteStartElement("targetfilters");
+            TargetFilterManager.Save(xml);
+            xml.WriteEndElement();
+
+            xml.WriteStartElement("soundfilters");
+            SoundMusicManager.Save(xml);
+            xml.WriteEndElement();
+
+            xml.WriteStartElement("waypoints");
+            WaypointManager.Save(xml);
             xml.WriteEndElement();
 
             xml.WriteEndElement(); // end profile section
@@ -767,39 +844,33 @@ namespace Assistant
         public static bool LoadLastProfile()
         {
             string name = LastProfileName;
-            bool failed = true;
-            Profile p = null;
+            Profile p;
 
-            if (name != null)
+            if (!string.IsNullOrWhiteSpace(name))
             {
                 p = new Profile(name);
-                failed = !p.Load();
-            }
-
-            if (failed)
-            {
-                if (p == null)
-                    p = new Profile("default");
-                else
-                    p.Name = "default";
-
-                if (!p.Load())
+                if (p.Load())
                 {
-                    p.MakeDefault();
-                    p.Save();
+                    if (m_Current != null)
+                        m_Current.Unload();
+                    m_Current = p;
+                    return true;
                 }
-
-                LastProfileName = "default";
             }
 
-            if (p != null)
+            LastProfileName = "default";
+            p = new Profile("default");
+            if (!p.Load())
             {
-                if (m_Current != null)
-                    m_Current.Unload();
-                m_Current = p;
+                p.MakeDefault();
+                p.Save();
             }
 
-            return !failed;
+            if (m_Current != null)
+                m_Current.Unload();
+            m_Current = p;
+
+            return true;
         }
 
         public static void SetupProfilesList(ComboBox list, string selectName)
@@ -947,6 +1018,11 @@ namespace Assistant
             if (!Directory.Exists(Path.Combine(appDir, "Profiles")))
             {
                 Directory.CreateDirectory(Path.Combine(appDir, "Profiles"));
+            }
+
+            if (!Directory.Exists(Path.Combine(appDir, "Scripts")))
+            {
+                Directory.CreateDirectory(Path.Combine(appDir, "Scripts"));
             }
 
             name = name.Length > 0 ? Path.Combine(appDir, name) : appDir;

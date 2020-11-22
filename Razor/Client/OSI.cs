@@ -1,4 +1,24 @@
-﻿using Assistant.Core;
+﻿#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
+using Assistant.Core;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -9,6 +29,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Assistant.Scripts;
 
 namespace Assistant
 {
@@ -124,7 +145,6 @@ namespace Assistant
         private bool m_Ready = false;
         private string m_LastStr = "";
         private DateTime m_ConnStart;
-        private Timer m_TBTimer;
         private IPAddress m_LastConnection;
 
         public override DateTime ConnectionStart
@@ -196,24 +216,6 @@ namespace Assistant
 
         public override Loader_Error LaunchClient(string client)
         {
-            /*string dir = Directory.GetCurrentDirectory();
-            Directory.SetCurrentDirectory( Path.GetDirectoryName( client ) );
-            Directory.SetCurrentDirectory( dir );
-
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo( client );
-                psi.WorkingDirectory = Path.GetDirectoryName( client );
-
-                ClientProc = Process.Start( psi );
-
-                if ( ClientProc != null && !Config.GetBool( "SmartCPU" ) )
-                    ClientProc.PriorityClass = (ProcessPriorityClass)Enum.Parse( typeof(ProcessPriorityClass), Config.GetString( "ClientPrio" ), true );
-            }
-            catch
-            {
-            }*/
-
             string dll = Path.Combine(Config.GetInstallDirectory(), "Crypt.dll");
             uint pid = 0;
             Loader_Error err = (Loader_Error) Load(client, dll, "OnAttach", null, 0, out pid);
@@ -223,12 +225,10 @@ namespace Assistant
                 try
                 {
                     ClientProc = Process.GetProcessById((int) pid);
-
-                    /*if ( ClientProc != null && !Config.GetBool( "SmartCPU" ) )
-                        ClientProc.PriorityClass = (ProcessPriorityClass)Enum.Parse( typeof(ProcessPriorityClass), Config.GetString( "ClientPrio" ), true );*/
                 }
                 catch
                 {
+                    // ignore
                 }
             }
 
@@ -321,10 +321,10 @@ namespace Assistant
             double perc = ((double) val) / ((double) max);
 
             if (perc <= 0.25)
-                return String.Format("~#FF0000{0}~#~", val);
+                return $"~#FF0000{val}~#~";
 
             if (perc <= 0.75)
-                return String.Format("~#FFFF00{0}~#~", val);
+                return $"~#FFFF00{val}~#~";
 
             return val.ToString();
         }
@@ -360,11 +360,8 @@ namespace Assistant
 
                 TitleBarBuilder.Replace(@"{bandage}", BandageTimer.Running ? $"~#FF8000{BandageTimer.Count}~#~" : "-");
 
-                string statStr = String.Format("{0}{1:X2}{2:X2}{3:X2}",
-                    (int) (World.Player.GetStatusCode()),
-                    (int) (World.Player.HitsMax == 0 ? 0 : (double) World.Player.Hits / World.Player.HitsMax * 99),
-                    (int) (World.Player.ManaMax == 0 ? 0 : (double) World.Player.Mana / World.Player.ManaMax * 99),
-                    (int) (World.Player.StamMax == 0 ? 0 : (double) World.Player.Stam / World.Player.StamMax * 99));
+                string statStr =
+                    $"{(int) (World.Player.GetStatusCode())}{(int) (World.Player.HitsMax == 0 ? 0 : (double) World.Player.Hits / World.Player.HitsMax * 99):X2}{(int) (World.Player.ManaMax == 0 ? 0 : (double) World.Player.Mana / World.Player.ManaMax * 99):X2}{(int) (World.Player.StamMax == 0 ? 0 : (double) World.Player.Stam / World.Player.StamMax * 99):X2}";
 
                 TitleBarBuilder.Replace(@"{statbar}", $"~SR{statStr}");
                 TitleBarBuilder.Replace(@"{mediumstatbar}", $"~SL{statStr}");
@@ -439,12 +436,14 @@ namespace Assistant
             World.Items.Clear();
             World.Mobiles.Clear();
             Macros.MacroManager.Stop();
+            ScriptManager.OnLogout();
             ActionQueue.Stop();
             Counter.Reset();
             GoldPerHourTimer.Stop();
             DamageTracker.Stop();
             BandageTimer.Stop();
             GateTimer.Stop();
+            WaypointManager.StopTimer();
             BuffsTimer.Stop();
             StealthSteps.Unhide();
             Engine.MainWindow.OnLogout();
@@ -452,6 +451,7 @@ namespace Assistant
                 Engine.MainWindow.MapWindow.Close();
             PacketHandlers.Party.Clear();
             PacketHandlers.IgnoreGumps.Clear();
+            Agents.BuyAgent.OnDisconnected();
             Config.Save();
 
             //TranslateEnabled = false;
@@ -722,6 +722,11 @@ namespace Assistant
             {
                 m_RecvQueue.Enqueue(p);
             }
+        }
+
+        public override void SendPacketToClient(byte[] packet, int length)
+        {
+            //_sendToClient(ref packet, ref length);
         }
 
         public override void ForceSendToClient(Packet p)

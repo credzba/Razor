@@ -1,16 +1,33 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
-using System.IO;
-using System.Reflection;
 using System.Collections;
-using System.Collections.Concurrent;
+using System.IO;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Timers;
+using Assistant.Agents;
 using Assistant.Core;
+using Assistant.Gumps;
 using Assistant.Macros;
 using Assistant.UI;
-using Ultima;
 
 namespace Assistant
 {
@@ -161,7 +178,10 @@ namespace Assistant
         Chivalry = 51,
         Bushido = 52,
         Ninjitsu = 53,
-        SpellWeaving = 54
+        SpellWeaving = 54,
+        Mysticism,
+        Imbuing,
+        Throwing,
     }
 
     public enum MaleSounds
@@ -861,17 +881,14 @@ namespace Assistant
                         hue = Config.GetInt("WarningColor");
                         break;
                     case MsgLevel.Friend:
-                        hue = Config.GetInt("FriendOverheadFormatHue");
+                        hue = 63;
                         break;
                     default:
                         hue = Config.GetInt("SysColor");
                         break;
                 }
 
-                PacketHandlers.SysMessages.Add(text);
-
-                if (PacketHandlers.SysMessages.Count >= 25)
-                    PacketHandlers.SysMessages.RemoveRange(0, 10);
+                SystemMessages.Add(text);
 
                 if (Config.GetBool("FilterRazorMessages"))
                 {
@@ -908,6 +925,26 @@ namespace Assistant
             Say(Config.GetInt("SpeechHue"), msg);
         }
 
+        internal void Whisper(string msg, int hue)
+        {
+            Client.Instance.SendToServer(new ClientUniMessage(MessageType.Whisper, hue, 3,
+                Language.CliLocName, new ArrayList(), msg));
+        }
+
+        internal void Yell(string msg, int hue)
+        {
+            Client.Instance.SendToServer(new ClientUniMessage(MessageType.Yell, hue, 3,
+                Language.CliLocName, new ArrayList(), msg));
+        }
+
+        internal void Emote(string msg, int hue)
+        {
+            msg = $"*{msg}*";
+
+            Client.Instance.SendToServer(new ClientUniMessage(MessageType.Emote, hue, 3,
+                Language.CliLocName, new ArrayList(), msg));
+        }
+
         public uint CurrentGumpS, CurrentGumpI;
         public GumpResponseAction LastGumpResponseAction;
         public bool HasGump;
@@ -923,6 +960,8 @@ namespace Assistant
         public uint PromptID;
         public uint PromptType;
         public string PromptInputText;
+
+        public GumpCollection InternalGumps { get; set; } = new GumpCollection();
 
         public void CancelPrompt()
         {
@@ -1014,8 +1053,11 @@ namespace Assistant
 
             protected override void OnTick()
             {
-                Client.Instance.ForceSendToClient(new SeasonChange(World.Player.Season, true));
-                m_SeasonTimer.Stop();
+                if (World.Player != null && Client.Instance != null)
+                {
+                    Client.Instance.ForceSendToClient(new SeasonChange(World.Player.Season, true));
+                    m_SeasonTimer.Stop();
+                }
             }
         }
 
@@ -1044,6 +1086,7 @@ namespace Assistant
         public Serial LastObject
         {
             get { return m_LastObj; }
+            set { m_LastObj = value; }
         }
 
         private int m_LastSpell = -1;
@@ -1056,6 +1099,30 @@ namespace Assistant
 
         //private UOEntity m_LastCtxM = null;
         //public UOEntity LastContextMenu { get { return m_LastCtxM; } set { m_LastCtxM = value; } }
+
+        public bool UseItem(Item cont, ushort find)
+        {
+            if (!Client.Instance.AllowBit(FeatureBit.PotionHotkeys))
+                return false;
+
+            for (int i = 0; i < cont.Contains.Count; i++)
+            {
+                Item item = (Item)cont.Contains[i];
+
+                if (item.ItemID == find)
+                {
+                    PlayerData.DoubleClick(item);
+                    return true;
+                }
+                else if (item.Contains != null && item.Contains.Count > 0)
+                {
+                    if (UseItem(item, find))
+                        return true;
+                }
+            }
+
+            return false;
+        }
 
         public static bool DoubleClick(object clicked)
         {
@@ -1104,7 +1171,7 @@ namespace Assistant
 
                 ActionQueue.DoubleClick(silent, s);
 
-                if (free != null)
+                if (free != null && Config.GetBool("PotionReequip"))
                     DragDropManager.DragDrop(free, World.Player, free.Layer, true);
 
                 if (s.IsItem)

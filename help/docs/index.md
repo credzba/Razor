@@ -1,74 +1,64 @@
-# Razor
+![razor](images/razor.png)
 
-Razor, UO:Renaissance Community Edition *(UOR:CE)*, is a free tool designed to help with simple tasks while playing Ultima Online.
+# Razor (UO:R Community Edition)
 
-For more information about this version of Razor, the history, release notes and downloads links please visit [http://www.uor-razor.com](http://www.uor-razor.com)
+[![Build status](https://ci.appveyor.com/api/projects/status/1815mo6is2t8fl1o?svg=true)](https://ci.appveyor.com/project/markdwags/razor)
+[![Chat on Discord status](https://img.shields.io/discord/458277173208547350.svg?logo=discord)](https://discord.gg/VdyCpjQ)
 
-## Installing Razor
+Razor is a free tool designed to help with simple tasks while playing Ultima Online.
 
-First, [download Razor](http://www.uor-razor.com/#download). Unlike previous versions of Razor, this version doesn't use the Windows Registry or `%AppData%\Razor` to store configuration, macros and profiles. In other words, *it's portable*. To install, follow these simple steps:
+This guide was written for the **Razor UO:Renaissance Community Edition**.
 
-* Download the latest release of Razor at [the main site](http://www.uor-razor.com).
-* Extract the zip into any location (ie: `C:\UO\Razor`)
-* **(Optional)** If you have an existing version of Razor, copy the Profiles and Macros folders from `%AppData%\Razor` into the folder you extracted the zip above to. If you have custom counters, also copy `counters.xml` over.
+For more information about this version of Razor, read the [history](#history), review the [release notes](./releasenotes.md) and [download](./download.md) Razor.
 
-> ***Note:** All macros should work from previous version, with the exception of macros using targeting created in Razor 1.0.14.x. You will need to re-add those target hotkeys to your macros.*
+# Overview
 
-* Right-click on the Razor shortcut or Razor.exe, go to Properties. On the Compatibility tab, select **Run this program in compatibility mode** for and select **Windows XP SP2**. Also select **Run this program as an administrator**
-* Run Razor either via the shortcut or clicking the Razor.exe directly.
-* Razor should prompt to **Run As Administrator**. You must allow this for Razor to function correctly.
+## Project Goal
 
-## Upgrading Razor
+The goal of this project is to revive and continue development and maintenance of the abandoned Razor project, focusing on *quality of life* improvements while attempting to keep the spirit and vision the original developers had for Razor and not driving down the path of advanced automation and scripting that's found in other UO assistants.
 
-Since Razor is portable, upgrading it is a copy/paste exercise.
+## History
 
-* Download the latest release of Razor at [the main site](http://www.uor-razor.com).
-* Extract the zip into your existing Razor location (ie: `C:\UO\Razor`), overwritting all files, with the exception of two:
-    * **counters.xml** - This is the default counters file used to display items in your titlebar. If you've added any new counters, they would be lost if overwritten.
-    * **Razor.exe.Config** - This is the config file that stores your UO path, server list, etc. Copying this over will overwrite those settings.
-* Open Razor back up and log back in.
+Razor was originally designed by Bryan Pass, known as Zippy in the RunUO community as a replacement to UOAssist. Based on commit notes, active development (new features, bug fixes) on Razor ceased some time in the early 2010's with the source code being released in 2014.
 
-## Welcome Screen
+The code initially didn't include `Crypt.dll` and `Loader.dll` which are required to fully integrate with the UO client. At some point, the code for those projects released into the same [GitHub repo](https://github.com/msturgill/razor).
 
-The first time you run Razor, it will open with a **Welcome Screen** and give you an option to import your exising
+The original project was last updated May 2nd, 2014 which was simply an update from .NET 2.0 to .NET 4.0 and while over 50 forks exist on GitHub, none of them have been active or have made significant changes except for a few exceptions:
 
-![welcome](images/welcome.png)
+* `Jaedan` (which this version is based on) who updated the project to compile and work in Visual Studio 2017 and made improvements to Crypt.dll that enabled this project to move forward.
+* `SaschaKP` who made several performance changes from generic to non-generic collections that I incorporated in the first release.
 
-Browse to your `client.exe` that you want to run along with Razor. Set the **UO Data Directory** (most likely the same path as your `client.exe`). Either use the pre-configured servers or enter your own server in the list here.
+I have been actively maintaining this project since early April 2018 and based this version off of `1.4.0.3`, which was simply the version `1.0.13.13` updated to .NET 4.0.
 
-You can also edit `Razor.exe.Config` and add your own servers or just enter the server name and port in this format: `server.name.com,port`
+Another version of Razor exists (the `1.0.14.x` versions) and is/was maintained by another private shard that make some enhancements, notable around targeting. This version of Razor has long since incorporated the majority of changes you can find in that version.
 
-Click **OK** to open Razor and Ultima Online.
+In June 2019 integration into [ClassicUO](https://github.com/andreakarasho/ClassicUO) was officially established.
 
-## Configuration File
+## UO:R Community Edition
 
-The **Welcome Screen** will control some of these settings, but some settings can only be changed by editing `.\Razor.exe.config`.
+When I started this project back in early 2018, nearly all the [feedback, ideas, discussion](http://www.uorforum.com/threads/improving-razor-razor-development.33134/) and [testing](http://www.uorforum.com/threads/razor-1-5-bug-issue-release-tracking.33405/) has came from the [UO:Renaissance](http://www.uorenaissance.com) community where the rules there only allow for the use of Razor and so that name was used to not only distinguish between other versions of Razor that are available but give credit to a community that provided so much support early on.
 
-```xml 
-<appSettings>
-    <add key="PatchEncy" value="1" /> <!-- Patch client encryption -->
-    <add key="ServerEnc" value="0" /> <!-- Use OSI encryption -->
-    <add key="MaxOrganizerAgents" value="20" /> <!-- Override the default Organizer agent count -->
-    <add key="MaxBuyAgents" value="10" /> <!-- Override the default Buy agent count -->
-    <add key="MaxRestockAgents" value="10" /> <!-- Override the default Restock agent count -->
-    <add key="ImportProfilesAndMacros" value="false" />  <!-- If true, will import macros and profiles from %AppData%\Razor -->
-    <add key="LastProfile" value="Test" /> <!-- Last profile used in Razor -->
-    <add key="LastServer" value="test.uorenaissance.com" /> <!-- Last server connected to in Razor -->
-    <add key="LastPort" value="2597" /> <!-- Last server port connected to in Razor -->
-    <add key="LastServerId" value="1" /> <!-- Index of the server selected in the dropdown -->
-    <add key="ShowWelcome" value="1" /> <!-- Show the Welcome Screen when loading Razor -->
-    <add key="UOClient" value="D:\Games\UO\client.exe" /> <!-- Location to Ultima Online client -->
-    <add key="UODataDir" value="D:\Games\UO" /> <!-- Location to Ultima Online data directory -->
-</appSettings>
+Since then, this version of Razor was updated to support the ClassicUO client with feedback and contributions coming from  all different corners of the freeshard UO community -- from large to small shards.
 
-<!-- You can define a list of servers here by adding values between <Servers></Servers> -->
-<Servers>
-    <add key="Custom Server" value="server.someserver.com,2593" />
-</Servers>
-```
+Thank you to all the folks across the whole community who have contributed in some way towards creating this version of Razor. If you'd like contribute, see the [CONTRIBUTING](https://github.com/markdwags/Razor/blob/master/CONTRIBUTING.md) file for more information.
 
-## About This Documentation
+**TL;DR:** If you want to use this version of Razor, regardless of the Ultima Online server you play on, this version should work. This version isn't tied to any specific shard. These updates to Razor are for all the Ultima Online Community to use and benefit from. Play UO on the shard that gives you the most enjoyment.
 
-The documentation found here is an aggregation of data and resources gathered across the Internet including [UO:Renaissance's Guide to Razor](http://uorforum.com/threads/renaissance-guide-to-razor.3671/).
+For me, that shard is [UO:Renaissance](http://www.uorenaissance.com).
 
-This documentation will give you a general overview of Razor and how to use it. If any information is missing or incorrect, please contact me.
+# Help
+
+If you're unable to find a solution using the information here or you'd like to submit a feature request or bug report, use the following resources.
+
+* Submit a feature/bug/issue on our [official Razor GitHub Repo](https://github.com/markdwags/Razor/issues).
+* Join us in #razor on Discord (this is the official [ClassicUO](https://www.classicuo.eu/) Discord server)
+
+[![Chat on Discord status](https://img.shields.io/discord/458277173208547350.svg?logo=discord)](https://discord.gg/VdyCpjQ)
+
+For more information about the Razor Scripting Engine, go [here](http://www.uor-razor.com/guide/).
+
+# Other
+
+All work is released under the GPLv3 license. This project does not distribute any copyrighted game assets. In order to run this application you'll need to legally obtain a copy of the Ultima Online Classic Client.
+
+See the [LICENSE](https://github.com/markdwags/Razor/blob/master/LICENSE.md) file for details.

@@ -1,7 +1,29 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using Assistant.Gumps.Internal;
 
 namespace Assistant.Core
 {
@@ -21,6 +43,8 @@ namespace Assistant.Core
         public static int MaxSingleDamageTaken { get; set; }
 
         public static ConcurrentDictionary<string, int> TotalDamageDealtByName;
+
+        private static DamageTrackerGump _gump;
 
         static DamageTracker()
         {
@@ -57,6 +81,8 @@ namespace Assistant.Core
         {
             if (!DamageTrackerTimer.Running)
                 return;
+
+            _gump.CloseGump();
 
             DamageTrackerTimer.Stop();
             Client.Instance.RequestTitlebarUpdate();
@@ -98,8 +124,19 @@ namespace Assistant.Core
             }
         }
 
+        public static List<KeyValuePair<string, int>> GetTotalDamageList()
+        {
+            List<KeyValuePair<string, int>> sortedList =
+                (from mob in TotalDamageDealtByName orderby mob.Value descending select mob)
+                .ToDictionary(pair => pair.Key, pair => pair.Value).ToList();
+
+            return sortedList;
+        }
+
         private class InternalTimer : Timer
         {
+            private StringBuilder _damageInfo = new StringBuilder();
+
             public InternalTimer() : base(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1))
             {
             }
@@ -112,6 +149,8 @@ namespace Assistant.Core
                     return;
                 }
 
+                _gump?.CloseGump();
+
                 TimeSpan span = DateTime.UtcNow.Subtract(StartTime);
 
                 DamagePerSecond = span.Seconds > 0 ? TotalDamageDealt / span.TotalSeconds : 0;
@@ -119,7 +158,17 @@ namespace Assistant.Core
                 if (DamagePerSecond > MaxDamagePerSecond)
                     MaxDamagePerSecond = DamagePerSecond;
 
-                Client.Instance.RequestTitlebarUpdate();
+                //Client.Instance.RequestTitlebarUpdate();
+
+                _damageInfo.AppendLine($"Total Damage Dealt: {TotalDamageDealt}");
+                _damageInfo.AppendLine($"Total Damage Taken: {TotalDamageTaken}");
+                _damageInfo.AppendLine($"Max Damage Dealt: {MaxSingleDamageDealt} on '{MaxSingleDamageDealtName}'");
+                _damageInfo.AppendLine($"Max Damage Taken: {MaxSingleDamageTaken}");
+
+                _gump = new DamageTrackerGump(_damageInfo.ToString());
+                _gump.SendGump();
+
+                _damageInfo.Clear();
             }
         }
 

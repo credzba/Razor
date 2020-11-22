@@ -1,4 +1,24 @@
-﻿using System;
+﻿#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -43,6 +63,10 @@ namespace Assistant.Core
             public string GroupName { get; set; }
             public bool Enabled { get; set; }
             public List<Friend> Friends { get; set; }
+
+            public string OverheadFormat { get; set; }
+            public int OverheadFormatHue { get; set; }
+            public bool OverheadFormatEnabled { get; set; }
 
             public FriendGroup()
             {
@@ -95,7 +119,7 @@ namespace Assistant.Core
                 }
             }
 
-            private void AddFriendToGroup()
+            public void AddFriendToGroup()
             {
                 World.Player.SendMessage(MsgLevel.Friend, $"Target friend to add to group '{GroupName}'");
                 Targeting.OneTimeTarget(OnAddFriendTarget);
@@ -162,7 +186,7 @@ namespace Assistant.Core
                         RedrawList(this);
                     }
 
-                    World.Player.SendMessage(MsgLevel.Friend, $"Added '{friendName}' to '{GroupName}'");
+                    World.Player?.SendMessage(MsgLevel.Friend, $"Added '{friendName}' to '{GroupName}'");
 
                     return true;
                 }
@@ -206,25 +230,42 @@ namespace Assistant.Core
             }
         }
 
+        public static bool IsFriendOverhead(Serial serial, ref FriendGroup group)
+        {
+            // Check if they have treat party as friends enabled and check the party if so
+            if (Config.GetBool("AutoFriend") && PacketHandlers.Party.Contains(serial))
+                return true;
+            
+            // Loop through each friends group that is enabled
+            foreach (FriendGroup friendGroup in FriendGroups)
+            {
+                if (friendGroup.Enabled && friendGroup.Friends.Any(f => f.Serial == serial))
+                {
+                    group = friendGroup;
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static bool IsFriend(Serial serial)
         {
             // Check if they have treat party as friends enabled and check the party if so
             if (Config.GetBool("AutoFriend") && PacketHandlers.Party.Contains(serial))
                 return true;
 
-            bool isFriend = false;
-
             // Loop through each friends group that is enabled
-            foreach (var friendGroup in FriendGroups)
+            foreach (FriendGroup friendGroup in FriendGroups)
             {
                 if (friendGroup.Enabled && friendGroup.Friends.Any(f => f.Serial == serial))
                 {
-                    isFriend = true;
-                    break;
+                    return true;
                 }
             }
 
-            return isFriend;
+            return false;
         }
 
         public static void EnableFriendsGroup(FriendGroup group, bool enabled)
@@ -313,7 +354,10 @@ namespace Assistant.Core
             {
                 Enabled = true,
                 GroupName = group,
-                Friends = new List<Friend>()
+                Friends = new List<Friend>(),
+                OverheadFormatHue = 63,
+                OverheadFormat = "[Friend]",
+                OverheadFormatEnabled = true
             };
 
             friendGroup.AddHotKeys();
@@ -323,6 +367,59 @@ namespace Assistant.Core
             RedrawGroup();
         }
 
+        public static void SetOverheadFormat(FriendGroup group, string format)
+        {
+            foreach (FriendGroup friendGroup in FriendGroups)
+            {
+                if (friendGroup == group)
+                {
+                    friendGroup.OverheadFormat = format;
+                    return;
+                }
+            }
+        }
+
+        public static void SetOverheadHue(FriendGroup group, int hue)
+        {
+            foreach (FriendGroup friendGroup in FriendGroups)
+            {
+                if (friendGroup == group)
+                {
+                    friendGroup.OverheadFormatHue = hue;
+                    return;
+                }
+            }
+        }
+
+        public static void SetOverheadFormatEnabled(FriendGroup group, bool enabled)
+        {
+            foreach (FriendGroup friendGroup in FriendGroups)
+            {
+                if (friendGroup == group)
+                {
+                    friendGroup.OverheadFormatEnabled = enabled;
+                    return;
+                }
+            }
+        }
+
+        public static void ShowOverhead(Mobile mobile)
+        {
+            FriendGroup group = null;
+
+            if (IsFriendOverhead(mobile.Serial, ref group))
+            {
+                if (group == null && Config.GetBool("ShowPartyFriendOverhead")) // If they are a friend with no group, must be a party member
+                {
+                    mobile.OverheadMessage(63, "[Party-Friend]");
+                }
+                else if (group != null && group.OverheadFormatEnabled)
+                {
+                    mobile.OverheadMessage(group.OverheadFormatHue, group.OverheadFormat);
+                }
+            }
+        }
+
         public static void Save(XmlTextWriter xml)
         {
             foreach (var friendGroup in FriendGroups)
@@ -330,6 +427,9 @@ namespace Assistant.Core
                 xml.WriteStartElement("group");
                 xml.WriteAttributeString("name", friendGroup.GroupName);
                 xml.WriteAttributeString("enabled", friendGroup.Enabled.ToString());
+                xml.WriteAttributeString("overheadformat", friendGroup.OverheadFormat);
+                xml.WriteAttributeString("overheadhue", friendGroup.OverheadFormatHue.ToString());
+                xml.WriteAttributeString("overheadenabled", friendGroup.OverheadFormatEnabled.ToString());
 
                 foreach (var friend in friendGroup.Friends)
                 {
@@ -356,6 +456,21 @@ namespace Assistant.Core
                         GroupName = el.GetAttribute("name"),
                         Enabled = Convert.ToBoolean(el.GetAttribute("enabled"))
                     };
+
+                    // Newer versions didn't have these, so it will cause an error when loading for the first time
+                    // If any fail, just set defaults
+                    try
+                    {
+                        friendGroup.OverheadFormat = el.GetAttribute("overheadformat");
+                        friendGroup.OverheadFormatHue = Convert.ToInt32(el.GetAttribute("overheadhue"));
+                        friendGroup.OverheadFormatEnabled = Convert.ToBoolean(el.GetAttribute("overheadenabled"));
+                    }
+                    catch
+                    {
+                        friendGroup.OverheadFormat = "[Friend]";
+                        friendGroup.OverheadFormatHue = 63;
+                        friendGroup.OverheadFormatEnabled = true;
+                    }
 
                     friendGroup.AddHotKeys();
 
@@ -402,7 +517,7 @@ namespace Assistant.Core
         {
             RedrawGroup();
 
-            if (_friendGroups.Items.Count > 0)
+            if (_friendGroups?.Items.Count > 0)
             {
                 RedrawList((FriendGroup) _friendGroups.Items[0]);
             }
@@ -414,7 +529,7 @@ namespace Assistant.Core
 
         public static void RedrawGroup()
         {
-            _friendGroups.SafeAction(s =>
+            _friendGroups?.SafeAction(s =>
             {
                 s.BeginUpdate();
                 s.Items.Clear();
@@ -435,7 +550,7 @@ namespace Assistant.Core
 
         public static void RedrawList(FriendGroup group)
         {
-            _friendList.SafeAction(s =>
+            _friendList?.SafeAction(s =>
             {
                 s.BeginUpdate();
                 s.Items.Clear();

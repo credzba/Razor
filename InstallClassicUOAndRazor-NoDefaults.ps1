@@ -3,7 +3,7 @@
   A basic Powershell script to download ClassicUO and Razor
   and configure the basic settings.
 .NOTES
-  Version:        1.2
+  Version:        1.5
   Author:         Quick
   Creation Date:  5/1/2019
 #>
@@ -11,7 +11,10 @@
 # Set TLS to be v1.2 or Invoke-WebRequest will fail
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-Write-Host "Install ClassicUO & Razor - v1.2" -ForegroundColor Yellow
+# Set the directory to be the one the command was issued in
+$WorkingDir = $(Get-Location).Path
+
+Write-Host "Install ClassicUO & Razor - v1.5" -ForegroundColor Yellow
 Write-Host "Author: Quick (https://github.com/markdwags/Razor)`n" -ForegroundColor Yellow
 
 # Check if they are running 64 bit version of Windows
@@ -59,18 +62,23 @@ $ForceDevPreview = $false
 try {
     $response = Invoke-RestMethod -Uri "https://api.github.com/repos/andreakarasho/ClassicUO/releases" -Method Get
 
-    $LatestCUO = $response[1].tag_name
-    $LatestCUODownloadUrl = $response[1].assets.browser_download_url
-    $LatestCUOFileName = $response[1].assets.name
-    $LatestCUOReleaseUpdated = $response[1].assets.updated_at
+    foreach ($release in $response) {
+        if ($release.tag_name -eq "ClassicUO-dev-preview") {
+            $LatestCUODevPreviewUpdated = $release.assets.updated_at
+            break
+        }
+    }
 
-    $LatestCUODevPreviewUpdated = $response[0].assets.updated_at
+    $LatestCUO = $response[0].tag_name
+    $LatestCUODownloadUrl = $response[0].assets.browser_download_url
+    $LatestCUOFileName = $response[0].assets.name
+    $LatestCUOReleaseUpdated = $response[0].assets.updated_at
 
     #Write-Host "Latest ClassicUO Release: $LatestCUO" -ForegroundColor Cyan
 } 
 catch {        
     Write-Host "************************" -ForegroundColor Red
-    Write-Host "Unable to get the latest Razor release version, will only download dev preview" -ForegroundColor Red
+    Write-Host "Unable to get the latest ClassicUO release version, will only download dev preview" -ForegroundColor Red
     Write-Host "************************" -ForegroundColor Red
 
     $ForceDevPreview = $true
@@ -101,13 +109,10 @@ catch {
 # Use UOR defaults?
 $useDefaults = $false
 
-# Set the directory to be the one the command was issued in
-$WorkingDir = $(Get-Location).Path
-
 if ($WorkingDir.ToLower().StartsWith("c:\program files")) {
     Write-Host "************************" -ForegroundColor Red
     Write-Host "It's recommended that you DO NOT install this into 'C:\Program Files' or 'C:\Program Files (x86)'" -ForegroundColor Red
-    Write-Host "This will force you to run ClassicUO as an Administator, which isn't necessary. You also might experience of file related permission issues" -ForegroundColor Red
+    Write-Host "This will force you to run ClassicUO as an Administator, which isn't necessary. You also might experience file related permission issues" -ForegroundColor Red
     Write-Host "This script won't stop you, but it really recommends that you pick another folder like 'C:\Games\ClassicUO' or simply 'C:\ClassicUO'" -ForegroundColor Red
     Write-Host "************************" -ForegroundColor Red
 
@@ -133,7 +138,7 @@ else {
 
     if ($proceed -ne "Y" -Or $proceed -ne "y") { Exit }
     
-    $backup = Read-Host -Prompt "> [UPGRADE] Would you like backup your existing installtion? [y or n]"
+    $backup = Read-Host -Prompt "> [UPGRADE] Would you like backup your existing installation? [y or n]"
 
     if ($backup -eq "Y" -Or $backup -eq "y") { 
         try {
@@ -264,8 +269,10 @@ if ($(Test-Path "$WorkingDir\settings.json" -PathType Leaf) -eq $False) {
         $path = Read-Host -Prompt "> Enter the path to your Ultima Online files (ie: C:\Ultima Online)" 
 
         # Do a basic check to ensure its the right folder
-        if ($(Test-Path "$path\art.mul" -PathType Leaf) -eq $false) {
-            Write-Host "** $path doesn't contain art.mul, a core Ultima Online client file. That must not be the correct folder. Please use the folder that contains the UO art/sound files." -ForegroundColor Red
+        if ([string]::IsNullOrEmpty($path) -eq $true) {
+            Write-Host "** You must type in a path to where you have Ultima Online installed." -ForegroundColor Red
+        } elseif ($(Test-Path "$path\art.mul" -PathType Leaf) -eq $false -And $(Test-Path "$path\artLegacyMUL.uop" -PathType Leaf) -eq $false) {
+            Write-Host "** $path doesn't contain art.mul or artLegacyMUL.uop, a core Ultima Online client file. That must not be the correct folder. Please use the folder that contains the UO art/sound files." -ForegroundColor Red
             $path = ""
         }
 

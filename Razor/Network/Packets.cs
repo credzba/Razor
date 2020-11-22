@@ -1,6 +1,27 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Assistant.Agents;
 
 namespace Assistant
 {
@@ -63,6 +84,18 @@ namespace Assistant
             Write((ushort) 0x06); // party command
             Write((byte) 0x09); // decline
             Write((uint) leader);
+        }
+    }
+
+    public sealed class AddParty : Packet
+    {
+        public AddParty() : base(0xBF)
+        {
+            EnsureCapacity(1 + 2 + 2 + 1 + 4);
+
+            Write((ushort)0x06); // party command
+            Write((byte)0x01); // add party
+            Write(0);
         }
     }
 
@@ -260,7 +293,7 @@ namespace Assistant
     {
         public SetWeather(int type, int num) : base(0x65, 4)
         {
-            Write((byte) type); //types: 0x00 - "It starts to rain", 0x01 - "A fierce storm approaches.", 0x02 - "It begins to snow", 0x03 - "A storm is brewing.", 0xFF - None (turns off sound effects), 0xFE (no effect?? Set temperature?) 
+            Write((byte) type); //types: 0x00 - "It starts to rain", 0x01 - "A fierce storm approaches.", 0x02 - "It begins to snow", 0x03 - "A storm is brewing.", 0xFF - None (turns off sound effects), 0xFE (no effect?? Set temperature?)
             Write((byte) num); //number of weather effects on screen
             Write((byte) 0xFE);
         }
@@ -268,9 +301,9 @@ namespace Assistant
 
     public sealed class PlayMusic : Packet
     {
-        public PlayMusic(int num) : base(0x6D, 3)
+        public PlayMusic(ushort num) : base(0x6D, 3)
         {
-            Write((uint) num);
+            Write(num);
         }
     }
 
@@ -735,7 +768,7 @@ namespace Assistant
     {
         public UseSkill(int sk) : base(0x12)
         {
-            string cmd = String.Format("{0} 0", sk);
+            string cmd = $"{sk} 0";
             EnsureCapacity(4 + cmd.Length + 1);
             Write((byte) 0x24);
             WriteAsciiNull(cmd);
@@ -765,9 +798,9 @@ namespace Assistant
         {
             string cmd;
             if (book.IsItem)
-                cmd = String.Format("{0} {1}", spell, book.Value);
+                cmd = $"{spell} {book.Value}";
             else
-                cmd = String.Format("{0}", spell);
+                cmd = $"{spell}";
             EnsureCapacity(3 + 1 + cmd.Length + 1);
             Write((byte) 0x27);
             WriteAsciiNull(cmd);
@@ -1768,6 +1801,17 @@ namespace Assistant
             EnsureCapacity(3 + version.Length);
 
             WriteAsciiNull(version);
+        }
+    }
+
+    internal sealed class QuestArrow : Packet
+    {
+        internal QuestArrow(bool active, int x, int y)
+            : base(0xBA, 10)
+        {
+            Write((byte) (active ? 1 : 0));
+            Write((ushort) x);
+            Write((ushort) y);
         }
     }
 }

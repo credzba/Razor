@@ -1,3 +1,23 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -44,7 +64,7 @@ namespace Assistant
 
     // Be careful when writing raw data, as it may confuse the GZBlockIn if not accounted for when reading.
     // Seeking in the compressed stream is HIGHLY unrecommended
-    // If you need to seek, use BufferAll to keep all data in the buffer, seek as much as you want, then 
+    // If you need to seek, use BufferAll to keep all data in the buffer, seek as much as you want, then
     // turn off BufferAll and flush the data to disk.
     // Once the data is flushed, you CANNOT seek back to it!
     public class GZBlockOut : Stream
@@ -232,10 +252,10 @@ namespace Assistant
     }
 
     // Represents a block compressed stream written by GZBlockOut
-    // If there is uncompressed data in the stream, you may seek to 
+    // If there is uncompressed data in the stream, you may seek to
     // it and read from is as you wish using Raw/RawStream.  If you have
-    // not yet started reading compressed data, you must position rawstream 
-    // at the begining of the compressed data.  If you've already read 
+    // not yet started reading compressed data, you must position rawstream
+    // at the begining of the compressed data.  If you've already read
     // compressed data, you must reposition the file pointer back to its previous
     // position in the stream.  This is really important.
     //

@@ -1,4 +1,24 @@
-﻿using Assistant.UI;
+﻿#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
+using Assistant.UI;
 using CUO_API;
 using System;
 using System.Diagnostics;
@@ -8,6 +28,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
+using Assistant.Core;
+using Assistant.Scripts;
 
 namespace Assistant
 {
@@ -47,27 +69,32 @@ namespace Assistant
                 return;
             }
 
-            /* Load localization files */
-            if (!Language.Load("ENU"))
-            {
-                SplashScreen.End();
-                MessageBox.Show(
-                    String.Format(
-                        "WARNING: Razor was unable to load the file Language/Razor_lang.ENU\n."),
-                    "Language Load Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            m_Running = true;
-
+            // load ultimasdk before or the Language.Load will throw the cliloc not found warning every time you run cuo
             string clientPath =
                 ((OnGetUOFilePath) Marshal.GetDelegateForFunctionPointer(plugin->GetUOFilePath, typeof(OnGetUOFilePath))
                 )();
+
+            // just replicating the static .ctor
+            Ultima.Files.ReLoadDirectory();
+            Ultima.Files.LoadMulPath();
 
             Ultima.Files.SetMulPath(clientPath);
             Ultima.Multis.PostHSFormat = UsePostHSChanges;
             Client.Instance.ClientEncrypted = false;
             Client.Instance.ServerEncrypted = false;
+
+
+            /* Load localization files */
+            if (!Language.Load("ENU"))
+            {
+                SplashScreen.End();
+                MessageBox.Show(
+                    "WARNING: Razor was unable to load the file Language/Razor_lang.ENU\n.",
+                    "Language Load Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            m_Running = true;
 
             Language.LoadCliLoc();
 
@@ -245,7 +272,8 @@ namespace Assistant
                     reader = new PacketReader(ptr, length, PacketsTable.IsDynLength(id));
                     result = !PacketHandler.OnServerPacket(id, reader, packet);
                 }
-                else if (isFilter)
+
+                if (isFilter)
                 {
                     packet = new Packet(data, length, PacketsTable.IsDynLength(id));
                     result = !PacketHandler.OnServerPacket(id, reader, packet);
@@ -320,9 +348,19 @@ namespace Assistant
             KMOD_RESERVED = 0x8000
         }
 
+        private enum SDL_Keycode_Ignore
+        {
+            SDLK_LCTRL = 1073742048,
+            SDLK_LSHIFT = 1073742049,
+            SDLK_LALT = 1073742050,
+            SDLK_RCTRL = 1073742052,
+            SDLK_RSHIFT = 1073742053,
+            SDLK_RALT = 1073742054,
+        }
+
         private bool OnHotKeyHandler(int key, int mod, bool ispressed)
         {
-            if (ispressed)
+            if (ispressed && !Enum.IsDefined(typeof(SDL_Keycode_Ignore), key))
             {
                 ModKeys cur = ModKeys.None;
                 SDL_Keymod keymod = (SDL_Keymod) mod;
@@ -349,11 +387,13 @@ namespace Assistant
             World.Items.Clear();
             World.Mobiles.Clear();
             Macros.MacroManager.Stop();
+            ScriptManager.OnLogout();
             ActionQueue.Stop();
             Counter.Reset();
             GoldPerHourTimer.Stop();
             BandageTimer.Stop();
             GateTimer.Stop();
+            WaypointManager.StopTimer();
             BuffsTimer.Stop();
             StealthSteps.Unhide();
             Engine.MainWindow.OnLogout();
@@ -361,6 +401,7 @@ namespace Assistant
                 Engine.MainWindow.MapWindow.Close();
             PacketHandlers.Party.Clear();
             PacketHandlers.IgnoreGumps.Clear();
+            Agents.BuyAgent.OnDisconnected();
             Config.Save();
         }
 
@@ -485,6 +526,11 @@ namespace Assistant
             _sendToClient(ref data, ref length);
         }
 
+        public override void SendPacketToClient(byte[] packet, int length)
+        {
+            _sendToClient(ref packet, ref length);
+        }
+
         public override void ForceSendToClient(Packet p)
         {
             byte[] data = p.Compile();
@@ -532,7 +578,7 @@ namespace Assistant
 
         internal override void RequestMove(Direction m_Dir)
         {
-            _requestMove((int) m_Dir, true);
+            _requestMove((int) m_Dir, false);
         }
 
         public void OnFocusGained()

@@ -1,3 +1,23 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 //#define LOG_CONTROL_TEXT
 
 using System;
@@ -539,6 +559,35 @@ namespace Assistant
         NewBeneficialTarget,
         NewHarmfulTarget,
         BirdSounds,
+        AddAllMobilesTargetFilter,
+        AddAllMobilesHumanoidTargetFilter,
+        InsertWhile,
+        InsertEndWhile,
+        InsertDo,
+        InsertDoWhile,
+        PlayScript,
+        NewScriptVariable,
+        ScriptPlaying,
+        ScriptFinished,
+        StopScript,
+        PartyAdd,
+        Mysticism,
+        Masteries,
+        NextWaypoint,
+        PrevWaypoint,
+        HideWaypoint,
+        InsertClearSysMsg,
+        ClearSysMsg,
+        NextTargetNonFriendly,
+        PrevTargetNonFriendly,
+        SetHue,
+        ScriptDClickType,
+        ScriptTargetType,
+        ScriptCopied,
+        GumpInfo,
+        GumpSysMsg,
+        GumpHotKeys,
+        GumpBoatControl,
         __End
     }
 
@@ -576,7 +625,7 @@ namespace Assistant
 
         public static string GetControlText(string name)
         {
-            name = String.Format("{0}::Text", name);
+            name = $"{name}::Text";
             if (m_Controls.ContainsKey(name))
                 return m_Controls[name] as string;
             else
@@ -593,8 +642,7 @@ namespace Assistant
         {
             string value = m_Strings[key] as string;
             if (value == null)
-                value = String.Format("LanguageString \"{0}\" not found!",
-                    key); //throw new MissingFieldException( String.Format( "Razor requested Language Pack string '{0}', but it does not exist in the current language pack.", key ) );
+                value = $"LanguageString \"{key}\" not found!"; //throw new MissingFieldException( String.Format( "Razor requested Language Pack string '{0}', but it does not exist in the current language pack.", key ) );
             return value;
         }
 
@@ -607,7 +655,7 @@ namespace Assistant
                 value = m_CliLoc.GetString(key);
 
             if (value == null)
-                value = String.Format("LanguageString \"{0}\" not found!", key);
+                value = $"LanguageString \"{key}\" not found!";
             return value;
         }
 
@@ -632,7 +680,7 @@ namespace Assistant
             if (m_CliLoc != null)
                 value = m_CliLoc.GetString(1044060 + skill);
             if (value == null)
-                value = String.Format("LanguageString \"{0}\" not found!", 1044060 + skill);
+                value = $"LanguageString \"{1044060 + skill}\" not found!";
             return value;
         }
 
@@ -653,7 +701,7 @@ namespace Assistant
 
             m_CliLocName = "enu";
             string filename = Path.Combine(Config.GetInstallDirectory("Language"),
-                String.Format("Razor_lang.{0}", lang.ToLower()));
+                $"Razor_lang.{lang.ToLower()}");
             if (!File.Exists(filename))
                 return false;
             m_Current = lang;
@@ -794,7 +842,7 @@ namespace Assistant
                 string fileName = "[CliLoc]";
                 try
                 {
-                    fileName = Ultima.Files.GetFilePath(String.Format("cliloc.{0}", m_CliLocName));
+                    fileName = Ultima.Files.GetFilePath($"cliloc.{m_CliLocName}");
                 }
                 catch
                 {
@@ -868,7 +916,7 @@ namespace Assistant
 
             for (int i = 0; i < controls.Count; i++)
             {
-                string find = String.Format("{0}::{1}", name, controls[i].Name);
+                string find = $"{name}::{controls[i].Name}";
                 string str = m_Controls[find] as string;
                 if (str != null)
                     controls[i].Text = str;
@@ -877,7 +925,7 @@ namespace Assistant
                 {
                     foreach (ColumnHeader ch in ((ListView) controls[i]).Columns)
                     {
-                        find = String.Format("{0}::{1}::{2}", name, controls[i].Name, ch.Index);
+                        find = $"{name}::{controls[i].Name}::{ch.Index}";
                         str = m_Controls[find] as string;
                         if (str != null)
                             ch.Text = str;
@@ -895,7 +943,7 @@ namespace Assistant
 #endif
 
             LoadControls(form.Name, form.Controls);
-            string text = m_Controls[String.Format("{0}::Text", form.Name)] as string;
+            string text = m_Controls[$"{form.Name}::Text"] as string;
             if (text != null)
                 form.Text = text;
 

@@ -1,16 +1,36 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
-using System.CodeDom;
 using System.IO;
-using System.Text;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Assistant.Agents;
 using Assistant.Core;
 using Assistant.Filters;
+using Assistant.Gumps;
+using Assistant.HotKeys;
 using Assistant.Macros;
+using Assistant.Scripts;
 using Assistant.UI;
-using OverheadMessages = Assistant.Core.OverheadMessages;
 using ContainerLabels = Assistant.Core.ContainerLabels;
 
 namespace Assistant
@@ -58,6 +78,7 @@ namespace Assistant
             PacketHandler.RegisterServerToClientViewer(0x17, new PacketViewerCallback(NewMobileStatus));
             PacketHandler.RegisterServerToClientViewer(0x1A, new PacketViewerCallback(WorldItem));
             PacketHandler.RegisterServerToClientViewer(0x1B, new PacketViewerCallback(LoginConfirm));
+            PacketHandler.RegisterServerToClientViewer(0x55, new PacketViewerCallback(CompleteLogin));
             PacketHandler.RegisterServerToClientFilter(0x1C, new PacketFilterCallback(AsciiSpeech));
             PacketHandler.RegisterServerToClientViewer(0x1D, new PacketViewerCallback(RemoveObject));
             PacketHandler.RegisterServerToClientFilter(0x20, new PacketFilterCallback(MobileUpdate));
@@ -107,6 +128,9 @@ namespace Assistant
             PacketHandler.RegisterServerToClientViewer(0x2C, new PacketViewerCallback(ResurrectionGump));
 
             PacketHandler.RegisterServerToClientViewer(0xDF, new PacketViewerCallback(BuffDebuff));
+
+            PacketHandler.RegisterServerToClientFilter(0x54, new PacketFilterCallback(PlaySoundEffect));
+            PacketHandler.RegisterServerToClientFilter(0x6D, new PacketFilterCallback(PlayMusic));
         }
 
         private static void DisplayStringQuery(PacketReader p, PacketHandlerEventArgs args)
@@ -209,11 +233,7 @@ namespace Assistant
             if (Config.GetBool("LastTargTextFlags"))
                 Targeting.CheckTextFlags(m);
 
-            if (Config.GetBool("ShowFriendOverhead") && FriendsManager.IsFriend(m.Serial))
-            {
-                m.OverheadMessage(Config.GetInt("FriendOverheadFormatHue"),
-                    $"{Config.GetString("FriendOverheadFormat")}");
-            }
+            FriendsManager.ShowOverhead(m);
         }
 
         private static void ClientDoubleClick(PacketReader p, PacketHandlerEventArgs args)
@@ -231,7 +251,10 @@ namespace Assistant
             if (Config.GetBool("QueueActions"))
                 args.Block = !PlayerData.DoubleClick(ser, false);
 
-            if (Macros.MacroManager.AcceptActions)
+            if (ser.IsItem && World.Player != null)
+                World.Player.LastObject = ser;
+
+            if (Macros.MacroManager.AcceptActions || ScriptManager.Recording)
             {
                 ushort gfx = 0;
                 if (ser.IsItem)
@@ -248,7 +271,11 @@ namespace Assistant
                 }
 
                 if (gfx != 0)
+                {
                     MacroManager.Action(new DoubleClickAction(ser, gfx));
+
+                    ScriptManager.AddToScript($"dclick {ser}");
+                }
             }
         }
 
@@ -304,6 +331,20 @@ namespace Assistant
                                 // ignored
                             }
                         }
+
+                        if (ScriptManager.Recording)
+                        {
+                            try
+                            {
+                                ScriptManager.AddToScript(ent.Serial == World.Player.Serial
+                                    ? $"menu 'self' {idx}"
+                                    : $"menu {ent.Serial} {idx}");
+                            }
+                            catch
+                            {
+                                // ignored
+                            }
+                        }
                     }
 
                     break;
@@ -323,6 +364,8 @@ namespace Assistant
 
                         if (Macros.MacroManager.AcceptActions)
                             MacroManager.Action(new ExtCastSpellAction(s, ser));
+
+                        ScriptManager.AddToScript($"cast '{Spell.GetName(sid)}'");
                     }
 
                     break;
@@ -368,10 +411,15 @@ namespace Assistant
                     if (World.Player != null)
                         World.Player.LastSkill = skillIndex;
 
-                    if (Macros.MacroManager.AcceptActions)
+                    if (MacroManager.AcceptActions)
                         MacroManager.Action(new UseSkillAction(skillIndex));
 
-                    if (skillIndex == (int) SkillName.Stealth && !World.Player.Visible)
+                    if (SkillHotKeys.UsableSkillsByName.ContainsValue(skillIndex))
+                    {
+                        ScriptManager.AddToScript($"skill '{SkillHotKeys.UsableSkillsByName.FirstOrDefault(x => x.Value.Equals(skillIndex)).Key}'");
+                    }
+
+                    if (World.Player != null && (skillIndex == (int) SkillName.Stealth && !World.Player.Visible))
                         StealthSteps.Hide();
 
                     SkillTimer.Start();
@@ -395,6 +443,8 @@ namespace Assistant
                                 args.Block = true;
                                 if (Macros.MacroManager.AcceptActions)
                                     MacroManager.Action(new BookCastSpellAction(s, serial));
+
+                                ScriptManager.AddToScript($"cast '{Spell.GetName(spellID)}'");
                             }
                         }
                     }
@@ -417,6 +467,8 @@ namespace Assistant
                             args.Block = true;
                             if (Macros.MacroManager.AcceptActions)
                                 MacroManager.Action(new MacroCastSpellAction(s));
+
+                            ScriptManager.AddToScript($"cast '{Spell.GetName(spellID)}'");
                         }
                     }
                     catch
@@ -508,6 +560,8 @@ namespace Assistant
                 MacroManager.Action(new LiftAction(serial, amount, iid));
                 //MacroManager.Action( new PauseAction( TimeSpan.FromMilliseconds( Config.GetInt( "ObjectDelay" ) ) ) );
             }
+
+            ScriptManager.AddToScript($"lift {serial} {amount}");
         }
 
         private static void LiftReject(PacketReader p, PacketHandlerEventArgs args)
@@ -531,7 +585,7 @@ namespace Assistant
 
             Item item = World.FindItem(iser);
 
-            if (MacroManager.AcceptActions)
+            if (MacroManager.AcceptActions || ScriptManager.Recording)
             {
                 if (layer == Layer.Invalid || layer > Layer.LastValid)
                 {
@@ -544,7 +598,12 @@ namespace Assistant
                 }
 
                 if (layer > Layer.Invalid && layer <= Layer.LastUserValid)
-                    MacroManager.Action(new DropAction(mser, Point3D.Zero, layer));
+                {
+                    if (MacroManager.AcceptActions)
+                        MacroManager.Action(new DropAction(mser, Point3D.Zero, layer));
+
+                    ScriptManager.AddToScript($"drop {mser} {layer}");
+                }
             }
 
             if (item == null)
@@ -573,6 +632,8 @@ namespace Assistant
             if (Macros.MacroManager.AcceptActions)
                 MacroManager.Action(new DropAction(dser, newPos));
 
+            ScriptManager.AddToScript($"drop {dser} {newPos.X} {newPos.Y} {newPos.Z}");
+
             Item i = World.FindItem(iser);
             if (i == null)
                 return;
@@ -598,6 +659,8 @@ namespace Assistant
                 WalkAction.LastWalkTime = DateTime.UtcNow;
                 if (MacroManager.AcceptActions)
                     MacroManager.Action(new WalkAction(dir));
+
+                ScriptManager.AddToScript($"walk '{dir}'");
             }
         }
 
@@ -720,7 +783,7 @@ namespace Assistant
                 }
 
                 item.Container = cont; // must be done after hue is set (for counters)
-                if (!SearchExemptionAgent.IsExempt(item) &&
+                if (World.Player != null && !SearchExemptionAgent.IsExempt(item) &&
                     (item.IsChildOf(World.Player.Backpack) || item.IsChildOf(World.Player.Quiver)))
                     Counter.Count(item);
             }
@@ -975,6 +1038,13 @@ namespace Assistant
                 World.Player.SetSeason();
         }
 
+        private static void CompleteLogin(PacketReader p, PacketHandlerEventArgs args)
+        {
+            // Set the default min light level if they have limits set
+            if (World.Player != null)
+                EnforceLightLevels(-1);
+        }
+
         private static void MobileMoving(Packet p, PacketHandlerEventArgs args)
         {
             Serial serial = p.ReadUInt32();
@@ -990,24 +1060,9 @@ namespace Assistant
             {
                 m.Body = p.ReadUInt16();
 
-                if (Config.GetBool("FilterDragonGraphics"))
-                {
-                    if (m.Body == 0xC || m.Body == 0x3B)
-                    {
-                        p.Seek(-2, SeekOrigin.Current);
-                        p.Write((ushort) Config.GetInt("DragonGraphic"));
-                    }
-                }
-
-                if (Config.GetBool("FilterDrakeGraphics"))
-                {
-                    if (m.Body == 0x3C || m.Body == 0x3D)
-                    {
-                        p.Seek(-2, SeekOrigin.Current);
-                        p.Write((ushort) Config.GetInt("DrakeGraphic"));
-                    }
-                }
-
+                MobileFilter.ApplyDragonFilter(p, m);
+                MobileFilter.ApplyDrakeFilter(p, m);
+                MobileFilter.ApplyDaemonFilter(p, m);
 
                 m.Position = new Point3D(p.ReadUInt16(), p.ReadUInt16(), p.ReadSByte());
 
@@ -1451,20 +1506,16 @@ namespace Assistant
             Serial serial = p.ReadUInt32();
             ushort body = p.ReadUInt16();
 
-            if (Config.GetBool("FilterDragonGraphics"))
-            {
-                if (body == 0xC || body == 0x3B)
-                {
-                    p.Seek(-2, SeekOrigin.Current);
-                    p.Write((ushort) Config.GetInt("DragonGraphic"));
-                }
-            }
-
-            Point3D position = new Point3D(p.ReadUInt16(), p.ReadUInt16(), p.ReadSByte());
-
             Mobile m = World.FindMobile(serial);
+
             if (m == null)
                 World.AddMobile(m = new Mobile(serial));
+
+            MobileFilter.ApplyDragonFilter(p, m);
+            MobileFilter.ApplyDrakeFilter(p, m);
+            MobileFilter.ApplyDaemonFilter(p, m);
+
+            Point3D position = new Point3D(p.ReadUInt16(), p.ReadUInt16(), p.ReadSByte());
 
             bool wasHidden = !m.Visible;
 
@@ -1472,12 +1523,6 @@ namespace Assistant
                 Client.Instance.SendToServer(new SingleClick(m));
             if (Config.GetBool("LastTargTextFlags"))
                 Targeting.CheckTextFlags(m);
-
-            if (Config.GetBool("ShowFriendOverhead") && FriendsManager.IsFriend(m.Serial))
-            {
-                m.OverheadMessage(Config.GetInt("FriendOverheadFormatHue"),
-                    $"{Config.GetString("FriendOverheadFormat")}");
-            }
 
             int ltHue = Config.GetInt("LTHilight");
             bool isLT;
@@ -1870,7 +1915,13 @@ namespace Assistant
                 args.Block = WallStaticFilter.MakeWallStatic(item);
         }
 
-        public static List<string> SysMessages = new List<string>();
+        public static System.Text.StringBuilder SpellPowerwordsBuilder { get; set; } = new System.Text.StringBuilder(Config.GetString("SpellFormat"));
+
+        private static void ResetSpellPowerwordsBuilder()
+        {
+            SpellPowerwordsBuilder.Remove(0, SpellPowerwordsBuilder.Length);
+            SpellPowerwordsBuilder.Insert(0, Config.GetString("SpellFormat"));
+        }
 
         public static void HandleSpeech(Packet p, PacketHandlerEventArgs args, Serial ser, ushort body,
             MessageType type, ushort hue, ushort font, string lang, string name, string text)
@@ -1882,9 +1933,12 @@ namespace Assistant
             {
                 Spell s = Spell.Get(text.Trim());
                 bool replaced = false;
-                if (s != null)
+
+                if (Config.GetBool("OverrideSpellFormat") && s != null)
                 {
-                    System.Text.StringBuilder sb = new System.Text.StringBuilder(Config.GetString("SpellFormat"));
+                    ResetSpellPowerwordsBuilder();
+
+                    System.Text.StringBuilder sb = SpellPowerwordsBuilder;
                     sb.Replace(@"{power}", s.WordsOfPower);
                     string spell = Language.GetString(s.Name);
                     sb.Replace(@"{spell}", spell);
@@ -1897,7 +1951,7 @@ namespace Assistant
                     {
                         Client.Instance.SendToClient(new AsciiMessage(ser, body, MessageType.Spell, s.GetHue(hue), font,
                             name, newText));
-                        //Client.Instance.SendToClient( new UnicodeMessage( ser, body, MessageType.Spell, s.GetHue( hue ), font, Language.CliLocName, name, newText ) );
+
                         replaced = true;
                         args.Block = true;
                     }
@@ -1942,20 +1996,7 @@ namespace Assistant
                     }
 
                     // Overhead message override
-                    if (Config.GetBool("ShowOverheadMessages") && OverheadMessages.OverheadMessageList.Count > 0)
-                    {
-                        string overheadFormat = Config.GetString("OverheadFormat");
-
-                        foreach (OverheadMessages.OverheadMessage message in OverheadMessages.OverheadMessageList)
-                        {
-                            if (text.IndexOf(message.SearchMessage, StringComparison.OrdinalIgnoreCase) != -1)
-                            {
-                                World.Player.OverheadMessage(message.Hue,
-                                    overheadFormat.Replace("{msg}", message.MessageOverhead));
-                                break;
-                            }
-                        }
-                    }
+                    OverheadManager.DisplayOverheadMessage(text);
                 }
 
                 if (Config.GetBool("ShowContainerLabels") && ser.IsItem)
@@ -1969,7 +2010,7 @@ namespace Assistant
                     {
                         // Check if its the serial match and if the text matches the name (since we override that for the label)
                         if (Serial.Parse(label.Id) == ser &&
-                            (item.DisplayName.Equals(text) ||
+                            (item.ItemID.ItemData.Name.Equals(text) ||
                              label.Alias.Equals(text, StringComparison.InvariantCultureIgnoreCase)))
                         {
                             string labelDisplay =
@@ -2006,6 +2047,12 @@ namespace Assistant
                         return;
                     }
 
+                    if (ser.IsMobile && TextFilterManager.IsFiltered(text))
+                    {
+                        args.Block = true;
+                        return;
+                    }
+
                     if (Config.GetBool("ForceSpeechHue"))
                     {
                         p.Seek(10, SeekOrigin.Begin);
@@ -2015,10 +2062,7 @@ namespace Assistant
 
                 if (!ser.IsValid || ser == World.Player.Serial || ser.IsItem)
                 {
-                    SysMessages.Add(text);
-
-                    if (SysMessages.Count >= 25)
-                        SysMessages.RemoveRange(0, 10);
+                    SystemMessages.Add(text);
                 }
 
                 if (Config.GetBool("FilterSystemMessages") && ser == Serial.MinusOne || ser == Serial.Zero)
@@ -2113,7 +2157,7 @@ namespace Assistant
             }
             catch (Exception e)
             {
-                Engine.LogCrash(new Exception(String.Format("Exception in Ultima.dll cliloc: {0}, {1}", num, ext_str),
+                Engine.LogCrash(new Exception($"Exception in Ultima.dll cliloc: {num}, {ext_str}",
                     e));
             }
         }
@@ -2145,9 +2189,9 @@ namespace Assistant
 
             string text;
             if ((affixType & 1) != 0) // prepend
-                text = String.Format("{0}{1}", affix, Language.ClilocFormat(num, args));
+                text = $"{affix}{Language.ClilocFormat(num, args)}";
             else // 0 == append, 2 = system
-                text = String.Format("{0}{1}", Language.ClilocFormat(num, args), affix);
+                text = $"{Language.ClilocFormat(num, args)}{affix}";
             HandleSpeech(p, phea, serial, body, type, hue, font, Language.CliLocName.ToUpper(), name, text);
         }
 
@@ -2164,6 +2208,8 @@ namespace Assistant
             if (Macros.MacroManager.AcceptActions &&
                 MacroManager.Action(new WaitForGumpAction(World.Player.CurrentGumpI)))
                 args.Block = true;
+
+            ScriptManager.AddToScript($"waitforgump {World.Player.CurrentGumpI} 10000");
         }
 
         private static void ClientGumpResponse(PacketReader p, PacketHandlerEventArgs args)
@@ -2172,22 +2218,24 @@ namespace Assistant
                 return;
 
             Serial ser = p.ReadUInt32();
-            uint tid = p.ReadUInt32();
-            int bid = p.ReadInt32();
+            uint gumpId = p.ReadUInt32();
+            int buttonId = p.ReadInt32();
 
             World.Player.HasGump = false;
             World.Player.HasCompressedGump = false;
 
-            int sc = p.ReadInt32();
-            if (sc < 0 || sc > 2000)
+            int switchCount = p.ReadInt32();
+            if (switchCount < 0 || switchCount > 2000)
                 return;
-            int[] switches = new int[sc];
-            for (int i = 0; i < sc; i++)
+
+            int[] switches = new int[switchCount];
+            for (int i = 0; i < switchCount; i++)
                 switches[i] = p.ReadInt32();
 
             int ec = p.ReadInt32();
             if (ec < 0 || ec > 2000)
                 return;
+
             GumpTextEntry[] entries = new GumpTextEntry[ec];
             for (int i = 0; i < ec; i++)
             {
@@ -2199,10 +2247,18 @@ namespace Assistant
                 entries[i] = new GumpTextEntry(id, text);
             }
 
-            if (Macros.MacroManager.AcceptActions)
-                MacroManager.Action(new GumpResponseAction(bid, switches, entries));
+            if (World.Player.InternalGumps.GetGump(gumpId, out Gump gump))
+            {
+                World.Player.InternalGumps.Remove(gumpId, buttonId, switches, entries);
+            }
 
-            World.Player.LastGumpResponseAction = new GumpResponseAction(bid, switches, entries);
+            if (Macros.MacroManager.AcceptActions)
+                MacroManager.Action(new GumpResponseAction(buttonId, switches, entries));
+
+            ScriptManager.AddToScript(buttonId == 0 ? "gumpclose" : $"gumpresponse {buttonId}");
+
+
+            World.Player.LastGumpResponseAction = new GumpResponseAction(buttonId, switches, entries);
         }
 
         private static void ChangeSeason(PacketReader p, PacketHandlerEventArgs args)
@@ -2235,6 +2291,7 @@ namespace Assistant
                         World.Player.HasGump = false;
                         World.Player.HasCompressedGump = false;
                     }
+
                     break;
                 }
 
@@ -2344,7 +2401,9 @@ namespace Assistant
 
         private static void RunUOProtocolExtention(PacketReader p, PacketHandlerEventArgs args)
         {
-            args.Block = true;
+            // Only block this packet if they are using the OSI client
+            // since ClassicUO actually has support for it now
+            args.Block = Client.IsOSI;
 
             switch (p.ReadByte())
             {
@@ -2526,6 +2585,9 @@ namespace Assistant
 
                     if (ability >= 0 && ability < (int) AOSAbility.Invalid && Macros.MacroManager.AcceptActions)
                         MacroManager.Action(new SetAbilityAction((AOSAbility) ability));
+                    else if (ability >= 0 && ability < (int) AOSAbility.Invalid)
+                        ScriptManager.AddToScript($"setability '{ability}'");
+
                     break;
                 }
             }
@@ -2571,6 +2633,8 @@ namespace Assistant
                 p.WriteAsciiFixed(m_LastPW, 30);
                 m_LastPW = "";
             }
+
+            ScriptManager.OnLogin();
         }
 
         private static void MenuResponse(PacketReader pvSrc, PacketHandlerEventArgs args)
@@ -2587,6 +2651,8 @@ namespace Assistant
             World.Player.HasMenu = false;
             if (MacroManager.AcceptActions)
                 MacroManager.Action(new MenuResponseAction(index, itemID, hue));
+
+            ScriptManager.AddToScript($"menuresponse {index} {itemID} {hue}");
         }
 
         private static void SendMenu(PacketReader p, PacketHandlerEventArgs args)
@@ -2598,6 +2664,9 @@ namespace Assistant
             World.Player.CurrentMenuI = p.ReadUInt16();
             World.Player.HasMenu = true;
             if (MacroManager.AcceptActions && MacroManager.Action(new WaitForMenuAction(World.Player.CurrentMenuI)))
+                args.Block = true;
+
+            if (ScriptManager.AddToScript($"replymenu {World.Player.CurrentMenuI}"))
                 args.Block = true;
         }
 
@@ -2673,8 +2742,11 @@ namespace Assistant
             if (Config.GetBool("MinMaxLightLevelEnabled"))
             {
                 // 0 bright, 30 is dark
-
-                if (lightLevel < Config.GetInt("MaxLightLevel"))
+                if (lightLevel == -1)
+                {
+                    lightLevel = Convert.ToByte(Config.GetInt("MinLightLevel"));
+                }
+                else if (lightLevel < Config.GetInt("MaxLightLevel"))
                 {
                     lightLevel = Convert.ToByte(Config.GetInt("MaxLightLevel")); // light level is too light
                 }
@@ -2745,6 +2817,8 @@ namespace Assistant
             if (Macros.MacroManager.AcceptActions &&
                 MacroManager.Action(new WaitForGumpAction(World.Player.CurrentGumpI)))
                 args.Block = true;
+
+            ScriptManager.AddToScript($"waitforgump {World.Player.CurrentGumpI}");
 
             List<string> gumpStrings = new List<string>();
 
@@ -2890,6 +2964,19 @@ namespace Assistant
                 ScreenCapManager.DeathCapture(Config.GetDouble("CaptureOwnDeathDelay"));
                 _lastSelfDeathScreenshot = DateTime.UtcNow;
             }
+
+            if (Config.GetBool("CreateWaypointOnDeath") && World.Player != null)
+            {
+                WaypointManager.Waypoint waypoint = new WaypointManager.Waypoint
+                {
+                    X = World.Player.Position.X,
+                    Y = World.Player.Position.Y,
+                    Name = "Your Body"
+                };
+
+                WaypointManager.AddWaypoint(waypoint);
+                WaypointManager.ShowWaypoint(waypoint);
+            }
         }
 
         private static void BuffDebuff(PacketReader p, PacketHandlerEventArgs args)
@@ -3027,6 +3114,9 @@ namespace Assistant
             {
                 MacroManager.Action(new PromptAction(World.Player.PromptInputText));
             }
+
+            if (!string.IsNullOrEmpty(World.Player.PromptInputText))
+                ScriptManager.AddToScript($"promptresponse '{World.Player.PromptInputText}'");
         }
 
         private static void UnicodePromptReceived(Packet p, PacketHandlerEventArgs args)
@@ -3047,10 +3137,58 @@ namespace Assistant
             {
                 MacroManager.Action(new WaitForPromptAction(id));
             }
+
+            ScriptManager.AddToScript($"waitforprompt {id}");
+
             //args.Block = true;
 
             //string lang = p.ReadStringSafe(4);
             //string message = p.ReadUnicodeStringSafe();
+        }
+
+        private static void PlaySoundEffect(Packet p, PacketHandlerEventArgs args)
+        {
+            if (World.Player == null)
+                return;
+
+            byte type = p.ReadByte();
+            ushort sound = p.ReadUInt16();
+
+            if (Config.GetBool("SoundFilterEnabled"))
+            {
+                bool blockSound = SoundMusicManager.IsFilteredSound(sound, out string name);
+
+                if (blockSound)
+                {
+                    args.Block = true;
+
+                    if (Config.GetBool("ShowFilteredSound"))
+                    {
+                        World.Player.SendMessage(MsgLevel.Warning, $"Blocked Sound: '{name}' (0x{sound:X})");
+                        return;
+                    }
+                }
+            }
+
+            if (Config.GetBool("ShowPlayingSoundInfo"))
+            {
+                World.Player.SendMessage(MsgLevel.Info,
+                    $"Playing Sound: '{SoundMusicManager.GetSoundName(sound)}' (0x{sound:X})");
+            }
+        }
+
+        private static void PlayMusic(Packet p, PacketHandlerEventArgs args)
+        {
+            if (World.Player == null)
+                return;
+
+            if (!Config.GetBool("ShowMusicInfo"))
+                return;
+
+            ushort musicId = p.ReadUInt16();
+
+            World.Player.SendMessage(
+                $"Playing Music: '{SoundMusicManager.GetMusicName(musicId, out bool loop)}' (id: '{musicId}' loop: '{loop}')");
         }
     }
 }

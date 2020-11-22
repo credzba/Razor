@@ -1,10 +1,32 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data;
+using Assistant.Agents;
 using Assistant.Core;
+using Assistant.Gumps.Internal;
 using Assistant.Macros;
+using Assistant.Scripts;
 
 namespace Assistant
 {
@@ -19,17 +41,61 @@ namespace Assistant
             Command.Register("Help", Command.ListCommands);
             Command.Register("Echo", Echo);
             Command.Register("Macro", MacroCmd);
+            Command.Register("Script", ScriptCmd);
             Command.Register("Hue", GetItemHue);
             Command.Register("Item", GetItemHue);
-            Command.Register("ClearItems", ClearItems);
             Command.Register("Resync", Resync);
             Command.Register("Mobile", GetMobile);
             Command.Register("Weather", SetWeather);
             Command.Register("Season", SetSeason);
             Command.Register("Damage", DamageTrackerReport);
+            Command.Register("Set", SetMacroVariable);
+            Command.Register("Track", Track);
+            Command.Register("Waypoint", Track);
+
+            Command.Register("TestGump", CreateGump);
+            Command.Register("Info", GetGumpInfo);
+
+            Command.Register("SysMsgs", GetSystemMessages);
+            Command.Register("SysMessages", GetSystemMessages);
+
+            Command.Register("HotKeys", ShowHotKeyGump);
+
+            Command.Register("Boat", ShowBoatControlGump);
+        }
+
+        private static void GetSystemMessages(string[] param)
+        {
+            SystemMessagesGump gump = new SystemMessagesGump();
+            gump.SendGump();            
+        }
+
+        private static void ShowHotKeyGump(string[] param)
+        {
+            HotKeyGump gump = new HotKeyGump(true, true, true);
+            gump.SendGump();
+        }
+
+        private static void ShowBoatControlGump(string[] param)
+        {
+            BoatControlGump gump = new BoatControlGump(0);
+            gump.SendGump();
+        }
+
+        private static void CreateGump(string[] param)
+        {
+            StringBuilder message = new StringBuilder();
+            message.AppendLine("Razor");
+            message.AppendLine();
+            message.AppendLine("Another message");
+
+            TestMessageGump gump =
+                new TestMessageGump(message.ToString());
+            gump.SendGump();
         }
 
         private static DateTime m_LastSync;
+        private static string _lastMacroVariable;
 
         private static void Resync(string[] param)
         {
@@ -50,6 +116,88 @@ namespace Assistant
                 DamageTracker.SendReport();
         }
 
+        private static void Track(string[] param)
+        {
+            try
+            {
+                if (param[0].Equals("off"))
+                {
+                    WaypointManager.ClearWaypoint();
+                    return;
+                }
+
+                WaypointManager.Waypoint waypoint = new WaypointManager.Waypoint
+                {
+                    Name = "N/A",
+                    X = Convert.ToUInt16(param[0]),
+                    Y = Convert.ToUInt16(param[1])
+                };
+
+                WaypointManager.ShowWaypoint(waypoint);
+            }
+            catch
+            {
+                WaypointManager.ClearWaypoint();
+            }
+        }
+
+        private static void SetMacroVariable(string[] param)
+        {
+            if (MacroManager.Playing || MacroManager.Recording || World.Player == null)
+                return;
+
+            if (string.IsNullOrEmpty(param[0]))
+            {
+                World.Player.SendMessage(MsgLevel.Error, "You must pass in a macro variable name.");
+                return;
+            }
+
+            _lastMacroVariable = param[0];
+
+            Targeting.OneTimeTarget(OnMacroVariableAddTarget);
+            World.Player.SendMessage(MsgLevel.Force, $"Select new target for '{_lastMacroVariable}'");
+        }
+
+        private static void OnMacroVariableAddTarget(bool ground, Serial serial, Point3D pt, ushort gfx)
+        {
+            TargetInfo t = new TargetInfo
+            {
+                Gfx = gfx,
+                Serial = serial,
+                Type = (byte) (ground ? 1 : 0),
+                X = pt.X,
+                Y = pt.Y,
+                Z = pt.Z
+            };
+
+            bool foundVar = false;
+
+            foreach (MacroVariables.MacroVariable mV in MacroVariables.MacroVariableList
+            )
+            {
+                if (mV.Name.ToLower().Equals(_lastMacroVariable.ToLower()))
+                {
+                    foundVar = true;
+                    // macro exists, update
+                    mV.TargetInfo = t;
+
+                    World.Player.SendMessage(MsgLevel.Force, $"'{mV.Name}' macro variable updated to '{t.Serial}'");
+
+                    break;
+                }
+            }
+
+            if (!foundVar)
+            {
+                MacroVariables.MacroVariableList.Add(new MacroVariables.MacroVariable(_lastMacroVariable, t));
+                World.Player.SendMessage(MsgLevel.Force,
+                    $"'{_lastMacroVariable}' not found, created variable and set to '{t.Serial}'");
+            }
+
+            // Save and reload the macros and vars
+            Engine.MainWindow.SaveMacroVariables();
+        }
+
         private static void SetWeather(string[] param)
         {
             Client.Instance.SendToClient(new UnicodeMessage(0xFFFFFFFF, -1, MessageType.Regular, 0x3B2, 3,
@@ -66,6 +214,34 @@ namespace Assistant
             Client.Instance.ForceSendToClient(new SeasonChange(Convert.ToInt32(param[0]), true));
         }
 
+        private static void GetGumpInfo(string[] param)
+        {
+            Targeting.OneTimeTarget(OnGetItemInfoTarget);
+            Client.Instance.SendToClient(new UnicodeMessage(0xFFFFFFFF, -1, MessageType.Regular, 0x3B2, 3,
+                Language.CliLocName, "System", "Select an item or mobile to view/inspect"));
+        }
+
+        private static void OnGetItemInfoTarget(bool ground, Serial serial, Point3D pt, ushort gfx)
+        {
+            Item item = World.FindItem(serial);
+
+            if (item == null)
+            {
+                Mobile mobile = World.FindMobile(serial);
+
+                if (mobile == null)
+                    return;
+
+                MobileInfoGump gump = new MobileInfoGump(mobile);
+                gump.SendGump();
+            }
+            else
+            {
+                ItemInfoGump gump = new ItemInfoGump(item);
+                gump.SendGump();
+            }
+        }
+
         private static void GetItemHue(string[] param)
         {
             Targeting.OneTimeTarget(OnGetItemHueTarget);
@@ -79,10 +255,8 @@ namespace Assistant
             if (item != null)
             {
                 Client.Instance.SendToClient(new UnicodeMessage(0xFFFFFFFF, -1, MessageType.Regular, 0x3B2, 3,
-                    Language.CliLocName, "System", $"Item: '{item.Name}' '{item.ItemID.Value}'"));
-
-                Client.Instance.SendToClient(new UnicodeMessage(0xFFFFFFFF, -1, MessageType.Regular, 0x3B2, 3,
-                    Language.CliLocName, "System", $"Hue: '{item.Hue}'"));
+                    Language.CliLocName, "System",
+                    $"Item Name: '{item.ItemID.ItemData.Name}' Serial: '{item.Serial}' Id: '{item.ItemID.Value}' Hue: '{item.Hue}'"));
             }
         }
 
@@ -118,26 +292,12 @@ namespace Assistant
                 Language.CliLocName, "System", sb.ToString()));
         }
 
-        private static void ClearItems(string[] param)
-        {
-            Client.Instance.SendToClient(new UnicodeMessage(0xFFFFFFFF, -1, MessageType.Regular, 0x3B2, 3,
-                Language.CliLocName, "System", "Clearing all items from memory cache"));
-
-            World.Items.Clear();
-            Resync(param);
-
-            Item.UpdateContainers();
-
-            Client.Instance.SendToClient(new UnicodeMessage(0xFFFFFFFF, -1, MessageType.Regular, 0x3B2, 3,
-                Language.CliLocName, "System", "All items in memory cache have been cleared"));
-        }
-
         private static void AddUseOnce(string[] param)
         {
             string use = Language.GetString(LocString.UseOnce);
             for (int i = 0; i < Agent.List.Count; i++)
             {
-                Agent a = (Agent) Agent.List[i];
+                Agent a = Agent.List[i];
                 if (a.Name == use)
                 {
                     a.OnButtonPress(1);
@@ -203,14 +363,29 @@ namespace Assistant
                 return;
             }
 
+            string macroName = string.Join(" ", param);
+
             foreach (Macro m in MacroManager.List)
             {
-                if (m.ToString() == param[0])
+                if (m.ToString().ToLower().Equals(macroName.ToLower()))
                 {
                     MacroManager.HotKeyPlay(m);
                     break;
                 }
             }
+        }
+
+        private static void ScriptCmd(string[] param)
+        {
+            if (param.Length <= 0)
+            {
+                World.Player.SendMessage("You must enter a script name.");
+                return;
+            }
+
+            string name = string.Join(" ", param);
+
+            ScriptManager.PlayScript(name);
         }
     }
 
@@ -310,6 +485,7 @@ namespace Assistant
                 if (text[0] != commandToggle)
                 {
                     Macros.MacroManager.Action(new Macros.SpeechAction(type, hue, font, lang, keys, text));
+                    ScriptManager.AddToScript($"say \'{text}\'");
                 }
                 else
                 {

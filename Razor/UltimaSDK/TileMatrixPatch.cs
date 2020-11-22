@@ -1,3 +1,23 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -82,10 +102,10 @@ namespace Ultima
             }
             else
             {
-                mapDataPath = Path.Combine(path, String.Format("mapdif{0}.mul", index));
+                mapDataPath = Path.Combine(path, $"mapdif{index}.mul");
                 if (!File.Exists(mapDataPath))
                     mapDataPath = null;
-                mapIndexPath = Path.Combine(path, String.Format("mapdifl{0}.mul", index));
+                mapIndexPath = Path.Combine(path, $"mapdifl{index}.mul");
                 if (!File.Exists(mapIndexPath))
                     mapIndexPath = null;
             }
@@ -105,13 +125,13 @@ namespace Ultima
             }
             else
             {
-                staDataPath = Path.Combine(path, String.Format("stadif{0}.mul", index));
+                staDataPath = Path.Combine(path, $"stadif{index}.mul");
                 if (!File.Exists(staDataPath))
                     staDataPath = null;
-                staIndexPath = Path.Combine(path, String.Format("stadifl{0}.mul", index));
+                staIndexPath = Path.Combine(path, $"stadifl{index}.mul");
                 if (!File.Exists(staIndexPath))
                     staIndexPath = null;
-                staLookupPath = Path.Combine(path, String.Format("stadifi{0}.mul", index));
+                staLookupPath = Path.Combine(path, $"stadifi{index}.mul");
                 if (!File.Exists(staLookupPath))
                     staLookupPath = null;
             }

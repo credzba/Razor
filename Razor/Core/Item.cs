@@ -1,7 +1,27 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
+using Assistant.Agents;
 
 namespace Assistant
 {
@@ -19,13 +39,13 @@ namespace Assistant
         Head = 0x06,
         Gloves = 0x07,
         Ring = 0x08,
-        Unused_x9 = 0x09,
+        Talisman = 0x09,
         Neck = 0x0A,
         Hair = 0x0B,
         Waist = 0x0C,
         InnerTorso = 0x0D,
         Bracelet = 0x0E,
-        Unused_xF = 0x0F,
+        Face = 0x0F,
         FacialHair = 0x10,
         MiddleTorso = 0x11,
         Earrings = 0x12,
@@ -229,10 +249,7 @@ namespace Assistant
             }
         }
 
-        public string DisplayName
-        {
-            get { return Ultima.TileData.ItemTable[m_ItemID.Value].Name; }
-        }
+        public string DisplayName => m_ItemID.Value < Ultima.TileData.ItemTable.Length ? Ultima.TileData.ItemTable[m_ItemID.Value].Name : string.Empty;
 
         public Layer Layer
         {
@@ -269,6 +286,26 @@ namespace Assistant
                 else if (recurse)
                 {
                     item = item.FindItemByID(id, true);
+                    if (item != null)
+                        return item;
+                }
+            }
+
+            return null;
+        }
+
+        public Item FindItemByName(string name, bool recurse)
+        {
+            foreach (var i in m_Items)
+            {
+                Item item = i;
+                if (item.ItemID.ItemData.Name.ToLower().Contains(name.ToLower()))
+                {
+                    return item;
+                }
+                else if (recurse)
+                {
+                    item = item.FindItemByName(name, true);
                     if (item != null)
                         return item;
                 }
@@ -707,16 +744,16 @@ namespace Assistant
                        (iid == 0x1438 || iid == 0x1439) || // war hammer
                        (iid == 0x1442 || iid == 0x1443) || // 2handed axe
                        (iid == 0x1402 || iid == 0x1403) || // short spear
-                       (iid == 0x26c1 || iid == 0x26cb) || // aos gay blade
-                       (iid == 0x26c2 || iid == 0x26cc) || // aos gay bow
-                       (iid == 0x26c3 || iid == 0x26cd) // aos gay xbow
+                       (iid == 0x26c1 || iid == 0x26cb) || // aos blade
+                       (iid == 0x26c2 || iid == 0x26cc) || // aos bow
+                       (iid == 0x26c3 || iid == 0x26cd) // aos xbow
                     ;
             }
         }
 
         public override string ToString()
         {
-            return String.Format("{0} ({1})", this.Name, this.Serial);
+            return $"{this.Name} ({this.Serial})";
         }
 
         public int Price
@@ -753,8 +790,8 @@ namespace Assistant
                 //"Desktop/{0}/{1}/{2}/Multicache.dat", World.AccountName, World.ShardName, World.OrigPlayerName
                 //"Desktop/{0}/{1}/{2}/Multicache.dat", World.AccountName, World.ShardName, World.Player.Name );
                 //"Desktop/{0}/Multicache.dat", World.AccountName );
-                string path = Ultima.Files.GetFilePath(String.Format("Desktop/{0}/{1}/{2}/Multicache.dat",
-                    World.AccountName, World.ShardName, World.OrigPlayerName));
+                string path = Ultima.Files.GetFilePath(
+                    $"Desktop/{World.AccountName}/{World.ShardName}/{World.OrigPlayerName}/Multicache.dat");
                 if (string.IsNullOrEmpty(path) || !File.Exists(path))
                     return;
 
@@ -762,7 +799,7 @@ namespace Assistant
                     new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                 {
                     string line;
-                    reader.ReadLine(); // ver 
+                    reader.ReadLine(); // ver
                     int skip = 0;
                     int count = 0;
                     while ((line = reader.ReadLine()) != null)

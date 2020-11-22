@@ -1,3 +1,23 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -64,6 +84,7 @@ namespace Ultima
             BlockWidth = width >> 3;
             BlockHeight = height >> 3;
 
+
             if (path == null)
             {
                 mapPath = Files.GetFilePath("map{0}.mul", fileIndex);
@@ -73,13 +94,20 @@ namespace Ultima
 
                 if (mapPath != null && mapPath.EndsWith(".uop"))
                     IsUOPFormat = true;
+
+                // For shards that use Fel and Tram before the split
+                if (String.IsNullOrEmpty(mapPath) || (!File.Exists(mapPath) && fileIndex == 1))
+                {
+                    fileIndex = 0;
+                    mapPath = Files.GetFilePath("map{0}.mul", fileIndex);
+                }
             }
             else
             {
-                mapPath = Path.Combine(path, String.Format("map{0}.mul", fileIndex));
+                mapPath = Path.Combine(path, $"map{fileIndex}.mul");
 
                 if (!File.Exists(mapPath))
-                    mapPath = Path.Combine(path, String.Format("map{0}LegacyMUL.uop", fileIndex));
+                    mapPath = Path.Combine(path, $"map{fileIndex}LegacyMUL.uop");
 
                 if (!File.Exists(mapPath))
                     mapPath = null;
@@ -101,7 +129,7 @@ namespace Ultima
                 indexPath = Files.GetFilePath("staidx{0}.mul", fileIndex);
             else
             {
-                indexPath = Path.Combine(path, String.Format("staidx{0}.mul", fileIndex));
+                indexPath = Path.Combine(path, $"staidx{fileIndex}.mul");
                 if (!File.Exists(indexPath))
                     indexPath = null;
             }
@@ -110,7 +138,7 @@ namespace Ultima
                 staticsPath = Files.GetFilePath("statics{0}.mul", fileIndex);
             else
             {
-                staticsPath = Path.Combine(path, String.Format("statics{0}.mul", fileIndex));
+                staticsPath = Path.Combine(path, $"statics{fileIndex}.mul");
                 if (!File.Exists(staticsPath))
                     staticsPath = null;
             }
@@ -406,7 +434,7 @@ namespace Ultima
 
             for (int i = 0; i < count; i++)
             {
-                string file = string.Format("build/{0}/{1:D8}.dat", pattern, i);
+                string file = $"build/{pattern}/{i:D8}.dat";
                 ulong hash = FileIndex.HashFileName(file);
 
                 if (!hashes.ContainsKey(hash))
@@ -446,9 +474,8 @@ namespace Ultima
                     }
                     else
                     {
-                        throw new ArgumentException(string.Format(
-                            "File with hash 0x{0:X8} was not found in hashes dictionary! EA Mythic changed UOP format!",
-                            hash));
+                        throw new ArgumentException(
+                            $"File with hash 0x{hash:X8} was not found in hashes dictionary! EA Mythic changed UOP format!");
                     }
                 }
             } while (m_UOPReader.BaseStream.Seek(nextBlock, SeekOrigin.Begin) != 0);

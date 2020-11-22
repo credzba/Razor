@@ -1,3 +1,23 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.Windows.Forms;
 using Assistant.Macros;
@@ -12,6 +32,8 @@ namespace Assistant
         private Macro m_Macro;
         private int m_Idx;
         private MacroAction m_Action;
+
+        private int m_SkillStart = -1;
 
         private System.Windows.Forms.Button insert;
         private System.Windows.Forms.TextBox txtAmount;
@@ -37,6 +59,16 @@ namespace Assistant
 
             foreach (Counter c in Counter.List)
                 varList.Items.Add(c.Name);
+
+            m_SkillStart = varList.Items.Count;
+
+            if (World.Player != null && World.Player.SkillsSent)
+            {
+                foreach (Skill skill in World.Player.Skills)
+                {
+                    varList.Items.Add(Language.Skill2Str(skill.Index));
+                }
+            }
         }
 
         public MacroInsertIf(MacroAction a)
@@ -49,6 +81,16 @@ namespace Assistant
 
             foreach (Counter c in Counter.List)
                 varList.Items.Add(c.Name);
+
+            m_SkillStart = varList.Items.Count;
+
+            if (World.Player != null && World.Player.SkillsSent)
+            {
+                foreach (Skill skill in World.Player.Skills)
+                {
+                    varList.Items.Add(Language.Skill2Str(skill.Index));
+                }
+            }
         }
 
         /// <summary>
@@ -214,6 +256,23 @@ namespace Assistant
                 {
                     a = new IfAction((IfAction.IfVarType) varList.SelectedIndex, txtAmount.Text);
                 }
+                else if (varList.SelectedIndex >= m_SkillStart)
+                {
+                    int skillId = -1;
+
+                    foreach (Skill skill in World.Player.Skills)
+                    {
+                        if (Language.Skill2Str(skill.Index).Equals(varList.SelectedItem as string))
+                        {
+                            skillId = skill.Index;
+                            break;
+                        }
+                    }
+
+                    if (skillId != -1)
+                        a = new IfAction(IfAction.IfVarType.Skill, (sbyte) opList.SelectedIndex,
+                            Utility.ToDouble(txtAmount.Text, 0.0), skillId);
+                }
                 else if (varList.SelectedIndex >= (int) IfAction.IfVarType.BeginCountersMarker)
                 {
                     a = new IfAction(IfAction.IfVarType.Counter, (sbyte) opList.SelectedIndex,
@@ -279,6 +338,16 @@ namespace Assistant
                     try
                     {
                         varList.SelectedItem = ((IfAction) m_Action).Counter;
+                    }
+                    catch
+                    {
+                    }
+
+                if (((IfAction) m_Action).SkillId != -1 &&
+                    ((IfAction) m_Action).Variable == IfAction.IfVarType.Skill)
+                    try
+                    {
+                        varList.SelectedItem = Language.Skill2Str(((IfAction) m_Action).SkillId);
                     }
                     catch
                     {

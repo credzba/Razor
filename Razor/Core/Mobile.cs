@@ -1,8 +1,28 @@
+#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
 using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using Assistant.Agents;
 using Assistant.UI;
 
 namespace Assistant
@@ -333,7 +353,7 @@ namespace Assistant
         {
             // hue color #30
             0x000000, // black		unused 0
-            0x30d0e0, // blue		0x0059 1 
+            0x30d0e0, // blue		0x0059 1
             0x60e000, // green		0x003F 2
             0x9090b2, // greyish	0x03b2 3
             0x909090, // grey		   "   4

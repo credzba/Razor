@@ -1,10 +1,28 @@
-﻿using System;
+﻿#region license
+
+// Razor: An Ultima Online Assistant
+// Copyright (C) 2020 Razor Development Community on GitHub <https://github.com/markdwags/Razor>
+// 
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#endregion
+
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
-using System.Linq;
 using Microsoft.Win32;
-using Newtonsoft.Json.Linq;
 
 namespace Ultima
 {
@@ -190,11 +208,6 @@ namespace Ultima
             "verdata.mul"
         };
 
-        static Files()
-        {
-            m_Directory = LoadDirectory();
-            LoadMulPath();
-        }
 
         /// <summary>
         /// ReReads Registry Client dir
@@ -330,14 +343,7 @@ namespace Ultima
             // If they're using the ClassicUO client, pull the UO data dir from the plugin
             if (!Assistant.Client.IsOSI)
             {
-                //dir = Assistant.Client.Instance.GetUoFilePath();
-
-                // Check in the root of this process for the file
-                if (File.Exists("settings.json"))
-                {
-                    dynamic cuoJson = JObject.Parse(File.ReadAllText("settings.json"));
-                    dir = cuoJson.ultimaonlinedirectory.ToString();
-                }
+                dir = Assistant.Client.Instance.GetUoFilePath();
             }
 
 
@@ -368,11 +374,11 @@ namespace Ultima
         {
             try
             {
-                RegistryKey key = Registry.LocalMachine.OpenSubKey(string.Format(@"SOFTWARE\{0}", regkey));
+                RegistryKey key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\{regkey}");
 
                 if (key == null)
                 {
-                    key = Registry.CurrentUser.OpenSubKey(string.Format(@"SOFTWARE\{0}", regkey));
+                    key = Registry.CurrentUser.OpenSubKey($@"SOFTWARE\{regkey}");
 
                     if (key == null)
                         return null;
@@ -460,7 +466,7 @@ namespace Ultima
         /// <returns></returns>
         public static bool CompareHashFile(string what, string path)
         {
-            string FileName = Path.Combine(path, String.Format("UOFiddler{0}.hash", what));
+            string FileName = Path.Combine(path, $"UOFiddler{what}.hash");
             if (File.Exists(FileName))
             {
                 try
@@ -472,7 +478,7 @@ namespace Ultima
                         byte[] buffer = new byte[length];
                         bin.Read(buffer, 0, length);
                         string hashold = BitConverter.ToString(buffer).Replace("-", "").ToLower();
-                        return Files.CompareMD5(Files.GetFilePath(String.Format("{0}.mul", what)), hashold);
+                        return Files.CompareMD5(Files.GetFilePath($"{what}.mul"), hashold);
                     }
                 }
                 catch
